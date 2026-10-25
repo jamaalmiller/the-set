@@ -210,12 +210,12 @@ function dirAfter(cat) {
 }
 function suggestForm(cat) {
   $('#helpbox').innerHTML = `<form id="sugg" class="card form"><h2>Tell us about them</h2>
-    <p class="small">Only John sees this. Share a name, city, and how to reach them.</p>
+    <p class="small">Only the admin sees this. Share a name, city, and how to reach them.</p>
     <label>Details<textarea name="details" required maxlength="500" rows="3"></textarea></label>
-    <button class="btn">Send to John</button></form>`;
+    <button class="btn">Send to admin</button></form>`;
   $('#sugg').scrollIntoView({ behavior: 'smooth' });
   $('#sugg').onsubmit = async e => { e.preventDefault();
-    try { await api.suggest(cat, formData(e.target).details.trim()); $('#helpbox').innerHTML = '<div class="card"><p>Thank you. John will take a look.</p></div>'; }
+    try { await api.suggest(cat, formData(e.target).details.trim()); $('#helpbox').innerHTML = '<div class="card"><p>Thank you. The admin will take a look.</p></div>'; }
     catch (x) { toast(friendly(x)); } };
 }
 // ---------- Request contact (private note to John; never shown to other members) ----------
@@ -242,13 +242,13 @@ function contactForm(box, target) {
 function helpForm(reason) {
   const vol = reason === 'volunteer';
   $('#helpbox').innerHTML = `<form id="help" class="card form"><h2>${vol ? 'Raise your hand' : 'Request help'}</h2>
-    <p>${vol ? 'I want to help. Tell John a little about you and how you help keep the peace. It stays private between you and John.' : esc(COPY.helpFormLine)}</p>
+    <p>${vol ? 'I want to help. Tell the admin a little about you and how you help keep the peace. It stays private between you and the admin.' : esc(COPY.helpFormLine)}</p>
     <p class="note">${esc(COPY.dirs.peace.notes[0])}</p>
     <p class="small">Please don't include names of other people involved.</p>
     <label>City<input name="city" maxlength="80"></label>
     <label>${vol ? 'About you' : "What's going on"}<textarea name="message" required maxlength="1500" rows="4"></textarea></label>
     <label>Best way to reach you (optional)<input name="best_contact" maxlength="200"></label>
-    <button class="btn">Send privately to John</button></form>`;
+    <button class="btn">Send privately to admin</button></form>`;
   $('#help').scrollIntoView({ behavior: 'smooth' });
   $('#help').onsubmit = async e => { e.preventDefault(); const d = formData(e.target);
     try { await api.help({ reason, city: d.city.trim() || null, message: d.message.trim(), best_contact: d.best_contact.trim() || null });
@@ -616,7 +616,7 @@ async function route() {
     html = S.user ? `<div class="card"><h1>Almost there</h1><p>Your account needs an invite code before you can come in.</p><a class="btn" href="#/code">Enter invite code</a></div>`
       : `<div class="card"><h1>Members only</h1><p>${esc(COPY.tagline)}</p><div class="row"><a class="btn" href="#/code">Pull up</a><a class="btn alt" href="#/request">Request an invite</a><a class="btn alt" href="#/signin">Sign in</a></div></div>`;
   } else if (key === 'admin' && !isAdmin()) {
-    html = '<div class="card"><h1>Admin only</h1><p>This page is just for John.</p></div>';
+    html = '<div class="card"><h1>Admin only</h1><p>This page is just for admins.</p></div>';
   } else {
     const v = V[key] || V.home; html = v(arg?.split('?')[0]); after = v.after && (() => v.after(arg?.split('?')[0]));
   }
