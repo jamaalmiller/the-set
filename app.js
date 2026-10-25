@@ -336,9 +336,8 @@ V.square = (id) => id ? `${squareHead()}<p><a href="#/square">← All topics</a>
 V.square.after = async (id) => {
   if (SHOW_PRESENCE) S.cleanup.push(api.presence(n => { const p = $('#presence'); if (p) p.textContent = `Live now (${n})`; }));
   if (!id) {
-    const all = await api.topics('square'), ts = all.filter(t => !t.grp), sn = cornerRooms(all);
-    $('#topics').innerHTML = (ts.length ? ts.map(topicCard).join('') : `<div class="card empty"><p>${esc(COPY.square.empty)}</p></div>`) +
-      (sn.length ? `<h2 class="group">${esc(COPY.corner.title)}</h2><p class="sub">${esc(COPY.corner.subtitle)}</p><p class="small">${esc(COPY.corner.safetyShort)}</p>${sn.map(topicCard).join('')}` : '');
+    const all = await api.topics('square'), ts = all.filter(t => !t.grp);
+    $('#topics').innerHTML = (ts.length ? ts.map(topicCard).join('') : `<div class="card empty"><p>${esc(COPY.square.empty)}</p></div>`);
     return;
   }
   const t = await api.topic(+id);
