@@ -5,8 +5,8 @@ import { SHOW_PRESENCE } from './config.js';
 // ===== Phone bottom bar: switch options by changing ONE line (NAV = NAV_A or NAV_B) =====
 const NAV_A = { bar: ['clinic', 'block', 'counsel', 'porch'], more: ['peace', 'square', 'guidelines', 'about', 'install', 'signout'] };
 const NAV_B = { bar: ['clinic', 'porch', 'block', 'square'], more: ['counsel', 'peace', 'guidelines', 'about', 'install', 'signout'] };
-const NAV = NAV_A;
-void NAV_B;
+const NAV = NAV_B;
+void NAV_A;
 
 const SECTIONS = {
   home: { label: 'Home', icon: '⌂' }, clinic: { label: 'The Clinic', short: 'Clinic', icon: '✚' },
