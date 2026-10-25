@@ -4,18 +4,18 @@ import { SHOW_PRESENCE } from './config.js';
 
 // ===== Phone bottom bar: switch options by changing ONE line (NAV = NAV_A or NAV_B) =====
 const NAV_A = { bar: ['clinic', 'block', 'counsel', 'porch'], more: ['peace', 'square', 'guidelines', 'about', 'install', 'signout'] };
-const NAV_B = { bar: ['clinic', 'porch', 'block', 'square'], more: ['counsel', 'peace', 'guidelines', 'about', 'install', 'signout'] };
+const NAV_B = { bar: ['clinic', 'porch', 'block', 'square'], more: ['counsel', 'classroom', 'peace', 'guidelines', 'about', 'install', 'signout'] };
 const NAV = NAV_B;
 void NAV_A;
 
 const SECTIONS = {
   home: { label: 'Home', icon: '⌂' }, clinic: { label: 'The Clinic', short: 'Clinic', icon: '✚' },
-  block: { label: 'The Block', short: 'Block', icon: '▦' }, counsel: { label: 'The Counsel', short: 'Counsel', icon: '⚖' },
+  block: { label: 'The Block', short: 'Block', icon: '▦' }, classroom: { label: 'The Classroom', short: 'Classroom', icon: '✎' }, counsel: { label: 'The Counsel', short: 'Counsel', icon: '⚖' },
   porch: { label: 'The Porch', short: 'Porch', icon: '☼' }, peace: { label: 'The Peace Table', short: 'Peace', icon: '☮' },
   square: { label: 'The Town Square', short: 'Square', icon: '◎' }, guidelines: { label: 'Guidelines' },
   about: { label: 'About' }, install: { label: 'Install help' }, signout: { label: 'Sign out' }, admin: { label: 'Admin' },
 };
-const MEMBER_ONLY = ['clinic', 'counsel', 'block', 'peace', 'porch', 'square', 'welcome'];
+const MEMBER_ONLY = ['clinic', 'counsel', 'classroom', 'block', 'peace', 'porch', 'square', 'welcome'];
 
 const S = { user: null, profile: null, cleanup: [] };
 const $ = s => document.querySelector(s);
@@ -35,7 +35,7 @@ function navLink(key) {
   return `<a class="navlink" href="#/${key}">${s.icon ? `<span aria-hidden="true">${s.icon}</span> ` : ''}${esc(s.label)}</a>`;
 }
 function renderNav() {
-  const all = ['home', ...NAV.bar, ...NAV.more.filter(k => !['guidelines', 'install', 'signout'].includes(k))];
+  const all = ['home', 'clinic', 'counsel', 'classroom', 'block', 'peace', 'porch', 'square', 'about'];
   $('#topnav').innerHTML = all.map(navLink).join('') + (isAdmin() ? navLink('admin') : '') +
     (S.user ? `<button class="navlink" data-signout>Sign out</button>` : `<a class="navlink" href="#/signin">Sign in</a>`);
   $('#bottombar').innerHTML = NAV.bar.map(k => `<a href="#/${k}" data-key="${k}"><span aria-hidden="true">${SECTIONS[k].icon}</span>${esc(SECTIONS[k].short)}</a>`).join('') +
@@ -124,14 +124,20 @@ function dirView(cat) {
     <div class="filters card">
       <label class="wide">Search<input id="q" type="search" placeholder="${esc(c.search)}"></label>
       <label>${esc(c.kindLabel)}<select id="fkind"><option value="">All</option></select></label>
+      ${cat === 'classroom' ? `<label>Level<select id="flevel"><option value="">All</option>${c.levels.map(v => `<option>${esc(v)}</option>`).join('')}</select></label>` : ''}
       <label>City<select id="fcity"><option value="">All</option></select></label>
-    </div><div id="results" class="list" aria-live="polite"><p>Loading…</p></div><div id="helpbox"></div>`;
+    </div>${c.discussion ? `<p class="small"><a href="#/square" id="classtalk">${esc(c.discussion)}</a></p>` : ''}<div id="results" class="list" aria-live="polite"><p>Loading…</p></div><div id="helpbox"></div>`;
 }
+const DAY = 864e5;
+const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+const daysLeft = d => Math.ceil((new Date(d + 'T23:59:59') - Date.now()) / DAY);
 function listingCard(l) {
+  const cl = l.category === 'classroom', dl = cl && l.kind === 'Scholarship' && l.deadline ? daysLeft(l.deadline) : null;
   const contact = l.contact_via_set ? 'Reach them through The Set: use Request help below.' : (l.contact || '');
   return `<article class="card listing"><h2>${esc(l.name)}</h2>
-    <p class="meta">${esc(l.kind)} · ${esc(l.city)}</p>
-    <p class="tags">${l.verified ? '<span class="badge">✓ Verified by The Set</span>' : ''}${l.telehealth ? '<span class="tag">Telehealth</span>' : ''}${isAdmin() && !l.published ? '<span class="tag warn">Not published</span>' : ''}</p>
+    <p class="meta">${esc(l.kind)}${l.level ? ' · ' + esc(l.level) : ''} · ${esc(l.city)}</p>
+    <p class="tags">${l.verified ? '<span class="badge">✓ Verified by The Set</span>' : ''}${l.telehealth ? '<span class="tag">Telehealth</span>' : ''}${dl !== null && dl >= 0 && dl <= 14 ? `<span class="tag warn">${esc(COPY.dirs.classroom.closingSoon)}</span>` : ''}${isAdmin() && !l.published ? '<span class="tag warn">Not published</span>' : ''}</p>
+    ${dl !== null ? `<p class="deadline">${esc(COPY.dirs.classroom.deadline(fmtDate(l.deadline)))}</p>` : ''}
     ${l.description ? `<p>${esc(l.description)}</p>` : ''}${contact ? `<p class="contact">${esc(contact)}</p>` : ''}</article>`;
 }
 function dirAfter(cat) {
@@ -139,17 +145,18 @@ function dirAfter(cat) {
     const c = COPY.dirs[cat]; let all = [];
     try { all = await api.listings(cat); } catch (x) { $('#results').innerHTML = `<p class="error">${esc(friendly(x))}</p>`; return; }
     const opts = (sel, vals) => { $(sel).innerHTML += [...new Set(vals)].sort().map(v => `<option>${esc(v)}</option>`).join(''); };
-    opts('#fkind', cat === 'peace' ? [...COPY.peaceKinds, ...all.map(l => l.kind)] : all.map(l => l.kind)); opts('#fcity', all.map(l => l.city));
+    opts('#fkind', cat === 'peace' ? [...COPY.peaceKinds, ...all.map(l => l.kind)] : cat === 'classroom' ? c.kinds : all.map(l => l.kind)); opts('#fcity', all.map(l => l.city));
     const draw = () => {
-      const q = $('#q').value.trim().toLowerCase(), k = $('#fkind').value, ci = $('#fcity').value;
-      const rows = all.filter(l => (!k || l.kind === k) && (!ci || l.city === ci) &&
-        (!q || [l.name, l.kind, l.city, l.description].join(' ').toLowerCase().includes(q)));
+      const q = $('#q').value.trim().toLowerCase(), k = $('#fkind').value, ci = $('#fcity').value, lv = $('#flevel')?.value;
+      const rows = all.filter(l => (!k || l.kind === k) && (!ci || l.city === ci) && (!lv || l.level === lv) &&
+        (!q || [l.name, l.kind, l.level, l.city, l.description].join(' ').toLowerCase().includes(q)));
       const sugg = cat === 'peace' ? `<button class="linkbtn" data-help="volunteer">Raise your hand.</button>` : `<button class="linkbtn" data-suggest>Tell us about them.</button>`;
       $('#results').innerHTML = rows.length ? rows.map(listingCard).join('') :
         `<div class="card empty"><p>${esc(c.empty)} ${sugg}</p></div>`;
-      if (rows.length && cat !== 'peace') $('#results').innerHTML += `<p class="small">${esc(c.empty.replace("We're growing this list. ", ''))} ${sugg}</p>`;
+      if (rows.length && cat !== 'peace' && cat !== 'classroom') $('#results').innerHTML += `<p class="small">${esc(c.empty.replace("We're growing this list. ", ''))} ${sugg}</p>`;
     };
-    ['#q', '#fkind', '#fcity'].forEach(s => $(s).addEventListener('input', draw)); draw();
+    ['#q', '#fkind', '#fcity', '#flevel'].forEach(s => $(s)?.addEventListener('input', draw)); draw();
+    if (cat === 'classroom') api.topics('square').then(ts => { const t = ts.find(x => x.title === c.topicTitle); if (t && $('#classtalk')) $('#classtalk').href = `#/square/${t.id}`; }).catch(() => {});
     view().addEventListener('click', e => {
       if (e.target.closest('[data-suggest]')) suggestForm(cat);
       const h = e.target.closest('[data-help]'); if (h) helpForm(h.dataset.help);
@@ -182,7 +189,7 @@ function helpForm(reason) {
       $('#helpbox').innerHTML = `<div class="card" role="status"><p class="lead">${esc(COPY.helpThanks)}</p></div>`; }
     catch (x) { toast(friendly(x)); } };
 }
-for (const cat of ['clinic', 'counsel', 'block', 'peace']) { V[cat] = () => dirView(cat); V[cat].after = dirAfter(cat); }
+for (const cat of ['clinic', 'counsel', 'classroom', 'block', 'peace']) { V[cat] = () => dirView(cat); V[cat].after = dirAfter(cat); }
 
 // ---------- Conversations (shared by The Porch and The Town Square) ----------
 function threadShell(t, o) {
@@ -348,7 +355,7 @@ V.admin.after = async (tab = 'requests') => {
     },
     async listings(cat = 'clinic') {
       const rows = await api.listings(cat);
-      box.innerHTML = `<label>Directory <select id="lcat">${['clinic', 'counsel', 'block', 'peace'].map(k => `<option value="${k}" ${k === cat ? 'selected' : ''}>${COPY.dirs[k].title}</option>`).join('')}</select></label>
+      box.innerHTML = `<label>Directory <select id="lcat">${['clinic', 'counsel', 'classroom', 'block', 'peace'].map(k => `<option value="${k}" ${k === cat ? 'selected' : ''}>${COPY.dirs[k].title}</option>`).join('')}</select></label>
         <button class="btn small" data-new>Add listing</button><div id="lform"></div>
         ${rows.map(l => listingCard(l) + `<div class="row"><button class="btn alt small" data-edit="${l.id}">Edit</button>
           <button class="btn alt small" data-toggle="published" data-lid="${l.id}">${l.published ? 'Unpublish' : 'Publish'}</button>
@@ -357,9 +364,12 @@ V.admin.after = async (tab = 'requests') => {
       const form = (l = { category: cat }) => {
         $('#lform').innerHTML = `<form id="lf" class="card form"><h2>${l.id ? 'Edit' : 'Add'} listing · ${COPY.dirs[cat].title}</h2>
           <label>Name${cat === 'peace' ? ' or group' : ''}<input name="name" required maxlength="120" value="${esc(l.name)}"></label>
-          <label>${COPY.dirs[cat].kindLabel}${cat === 'peace' ? ` (${COPY.peaceKinds.join(', ')})` : ''}<input name="kind" required maxlength="80" value="${esc(l.kind)}"></label>
-          <label>City<input name="city" required maxlength="80" value="${esc(l.city)}"></label>
-          <label>Contact (phone, email, or website)<input name="contact" maxlength="200" value="${esc(l.contact)}"></label>
+          ${cat === 'classroom' ? `<label>Type<select name="kind" required>${COPY.dirs.classroom.kinds.map(k => `<option ${l.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
+          <label>Level (optional)<select name="level"><option value="">None</option>${COPY.dirs.classroom.levels.map(k => `<option ${l.level === k ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
+          <label>Deadline (scholarships only, optional)<input name="deadline" type="date" value="${esc(l.deadline)}"></label>` :
+          `<label>${COPY.dirs[cat].kindLabel}${cat === 'peace' ? ` (${COPY.peaceKinds.join(', ')})` : ''}<input name="kind" required maxlength="80" value="${esc(l.kind)}"></label>`}
+          <label>City${cat === 'classroom' ? ' (or Online)' : ''}<input name="city" required maxlength="80" value="${esc(l.city)}"></label>
+          <label>${cat === 'classroom' ? 'Link to apply, or contact' : 'Contact (phone, email, or website)'}<input name="contact" maxlength="200" value="${esc(l.contact)}"></label>
           ${cat === 'peace' ? `<label class="check"><input type="checkbox" name="contact_via_set" ${l.contact_via_set ? 'checked' : ''}> Reach them through The Set (hide contact)</label>` : ''}
           ${cat === 'clinic' ? `<label class="check"><input type="checkbox" name="telehealth" ${l.telehealth ? 'checked' : ''}> Telehealth</label>` : ''}
           <label>Short description (optional)<textarea name="description" maxlength="500" rows="2">${esc(l.description)}</textarea></label>
@@ -369,7 +379,8 @@ V.admin.after = async (tab = 'requests') => {
         $('#lf').onsubmit = async e => { e.preventDefault(); const d = formData(e.target);
           try { await api.saveListing({ ...(l.id ? { id: l.id } : {}), category: cat, name: d.name.trim(), kind: d.kind.trim(), city: d.city.trim(),
             contact: d.contact.trim() || null, description: d.description.trim() || null, contact_via_set: !!d.contact_via_set, telehealth: !!d.telehealth,
-            published: !!d.published, verified: !!d.verified }); R.listings(cat); toast('Saved.'); } catch (x) { toast(friendly(x)); } };
+            published: !!d.published, verified: !!d.verified,
+            ...(cat === 'classroom' ? { level: d.level || null, deadline: d.kind === 'Scholarship' && d.deadline ? d.deadline : null } : {}) }); R.listings(cat); toast('Saved.'); } catch (x) { toast(friendly(x)); } };
         $('#lf').scrollIntoView({ behavior: 'smooth' });
       };
       box.onclick = async e => {

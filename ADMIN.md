@@ -9,8 +9,11 @@ Shows the number of members, muted members, join requests waiting, comments, pho
 ## Tabs
 - **Join requests**: approve or decline people who asked to join. Approving creates an invite code and a ready-to-copy message you send yourself. The app never sends email.
 - **Invite codes**: make, view and turn off invite codes.
-- **Listings**: approve, hide or remove listings.
-- **Topics and photos**: lock or unlock a topic, and turn **Photos on/off** for each topic. Photos off is the kill switch: new photo posts stop right away and existing photos stay. Right now photos are on for The Porch only, and Town Square is text only.
+- **Listings**: add, edit, publish/unpublish and mark Verified for every directory, including **The Classroom**.
+  - *Add a scholarship:* Listings, pick **The Classroom** in the Directory menu, tap **Add listing**, choose Type **Scholarship**, fill in the name or program, level (high school, college, adult/trade), city (or "Online"), the link to apply, an optional deadline and a short description, tick **Published**, then **Save**. A "Closing soon" tag shows on its own in the last 14 days before the deadline.
+  - *Add an educator:* same steps with Type **Educator** (no deadline). Tick **Verified by The Set** only after you've checked them yourself; otherwise no "verified" wording shows.
+  - Members can't post Classroom listings; they send ideas through "Tell us about them", which lands in **Suggestions**.
+- **Topics and photos**: lock or unlock a topic, and turn **Photos on/off** for each topic. Photos off is the kill switch: new photo posts stop right away and existing photos stay. Right now photos are on for The Porch only, and Town Square is text only. The Town Square topic **Schools, college, trades and our kids** is The Classroom's discussion room.
 - **Flags**: posts members flagged, with their photo if there is one. Any post with 2 flags is hidden automatically. **Restore** brings a post back. **Remove** takes the post down and deletes its photo file for good.
 - **Members**: mute, unmute or remove members, and change roles.
 - **Help requests**: questions from members, with a copy-message helper for replying.

@@ -180,7 +180,7 @@ async function supabaseBackend() {
 
 // ------------------------- DEMO backend (no accounts) -------------------------
 function demoBackend() {
-  const KEY = 'theset-demo-v2';
+  const KEY = 'theset-demo-v3';
   const now = () => new Date().toISOString();
   const seed = () => ({
     seq: 100, me: null,
@@ -194,10 +194,14 @@ function demoBackend() {
       { id: 5, category: 'block', name: 'Sample Business', kind: 'Food', city: 'Sample City', contact: '555-0103', verified: false, published: true },
       { id: 6, category: 'block', name: 'Sample Unpublished Shop', kind: 'Retail', city: 'Sample City', contact: '555-0104', verified: false, published: false },
       { id: 7, category: 'peace', name: 'Sample Liaison Group', kind: 'Mediation', city: 'Sample City', contact: '', contact_via_set: true, verified: true, published: true },
+      { id: 31, category: 'classroom', name: 'Sample Scholarship Fund', kind: 'Scholarship', level: 'college', city: 'Online', contact: 'example.org/apply', deadline: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10), verified: false, published: true, description: 'Sample scholarship for the demo.' },
+      { id: 32, category: 'classroom', name: 'Sample Trade Grant', kind: 'Scholarship', level: 'adult/trade', city: 'Sample City', contact: 'example.org/grant', deadline: new Date(Date.now() + 60 * 864e5).toISOString().slice(0, 10), verified: false, published: true },
+      { id: 33, category: 'classroom', name: 'Sample Math Tutor', kind: 'Educator', level: 'high school', city: 'Sample City', contact: '555-0105', verified: true, published: true },
     ],
     suggestions: [], help: [],
     topics: [{ id: 8, kind: 'porch', title: 'The Porch', locked: false, allow_photos: true, created_at: now() },
-             { id: 9, kind: 'square', title: 'Sample topic: What should The Set talk about first?', body: 'Sample topic for the demo.', locked: false, created_at: now() }],
+             { id: 9, kind: 'square', title: 'Sample topic: What should The Set talk about first?', body: 'Sample topic for the demo.', locked: false, created_at: now() },
+             { id: 34, kind: 'square', title: 'Schools, college, trades and our kids', body: 'Talk it out: schools, college, trades, and what our kids need.', locked: false, created_at: now() }],
     comments: [{ id: 10, topic_id: 9, parent_id: null, user_id: 'demo-bot', author_name: 'Sample Member', body: 'Sample comment. This is demo text.', hidden: false, removed: false, created_at: now() }],
     reports: [],
   });
