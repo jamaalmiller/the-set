@@ -15,7 +15,7 @@ const SECTIONS = {
   square: { label: 'The Town Square', short: 'Square', icon: '◎' }, guidelines: { label: 'Guidelines' },
   about: { label: 'About' }, install: { label: 'Install help' }, signout: { label: 'Sign out' }, admin: { label: 'Admin' },
 };
-const MEMBER_ONLY = ['clinic', 'counsel', 'classroom', 'block', 'peace', 'porch', 'square', 'welcome'];
+const MEMBER_ONLY = ['corner', 'clinic', 'counsel', 'classroom', 'block', 'peace', 'porch', 'square', 'welcome'];
 
 const S = { user: null, profile: null, cleanup: [] };
 const $ = s => document.querySelector(s);
@@ -121,11 +121,13 @@ function dirView(cat) {
   const c = COPY.dirs[cat];
   return `<h1>${esc(c.title)}</h1><p class="lead">${esc(c.intro)}</p>${notes(c.notes)}
     ${cat === 'peace' ? `<div class="row"><button class="btn" data-help="help">Request help</button></div>` : ''}
+    ${cat === 'classroom' ? `<a class="card block corner" href="#/corner"><h2>${esc(COPY.corner.title)}</h2><p>${esc(COPY.corner.card)}</p></a>` : ''}
     <div class="filters card">
       <label class="wide">Search<input id="q" type="search" placeholder="${esc(c.search)}"></label>
       <label>${esc(c.kindLabel)}<select id="fkind"><option value="">All</option></select></label>
       ${cat === 'classroom' ? `<label>Level<select id="flevel"><option value="">All</option>${c.levels.map(v => `<option>${esc(v)}</option>`).join('')}</select></label>` : ''}
       <label>City<select id="fcity"><option value="">All</option></select></label>
+      ${cat === 'classroom' ? `<label class="check"><input type="checkbox" id="fsn"> ${esc(COPY.corner.filter)}</label>` : ''}
     </div>${c.discussion ? `<p class="small"><a href="#/square" id="classtalk">${esc(c.discussion)}</a></p>` : ''}<div id="results" class="list" aria-live="polite"><p>Loading…</p></div><div id="helpbox"></div>`;
 }
 const DAY = 864e5;
@@ -136,7 +138,7 @@ function listingCard(l) {
   const contact = l.contact_via_set ? 'Reach them through The Set: use Request help below.' : (l.contact || '');
   return `<article class="card listing"><h2>${esc(l.name)}</h2>
     <p class="meta">${esc(l.kind)}${l.level ? ' · ' + esc(l.level) : ''} · ${esc(l.city)}</p>
-    <p class="tags">${l.verified ? '<span class="badge">✓ Verified by The Set</span>' : ''}${l.telehealth ? '<span class="tag">Telehealth</span>' : ''}${dl !== null && dl >= 0 && dl <= 14 ? `<span class="tag warn">${esc(COPY.dirs.classroom.closingSoon)}</span>` : ''}${isAdmin() && !l.published ? '<span class="tag warn">Not published</span>' : ''}</p>
+    <p class="tags">${l.verified ? '<span class="badge">✓ Verified by The Set</span>' : ''}${l.telehealth ? '<span class="tag">Telehealth</span>' : ''}${cl && l.special_needs ? `<span class="tag">${esc(COPY.corner.tag)}</span>` : ''}${dl !== null && dl >= 0 && dl <= 14 ? `<span class="tag warn">${esc(COPY.dirs.classroom.closingSoon)}</span>` : ''}${isAdmin() && !l.published ? '<span class="tag warn">Not published</span>' : ''}</p>
     ${dl !== null ? `<p class="deadline">${esc(COPY.dirs.classroom.deadline(fmtDate(l.deadline)))}</p>` : ''}
     ${l.description ? `<p>${esc(l.description)}</p>` : ''}${contact ? `<p class="contact">${esc(contact)}</p>` : ''}</article>`;
 }
@@ -147,15 +149,17 @@ function dirAfter(cat) {
     const opts = (sel, vals) => { $(sel).innerHTML += [...new Set(vals)].sort().map(v => `<option>${esc(v)}</option>`).join(''); };
     opts('#fkind', cat === 'peace' ? [...COPY.peaceKinds, ...all.map(l => l.kind)] : cat === 'classroom' ? c.kinds : all.map(l => l.kind)); opts('#fcity', all.map(l => l.city));
     const draw = () => {
-      const q = $('#q').value.trim().toLowerCase(), k = $('#fkind').value, ci = $('#fcity').value, lv = $('#flevel')?.value;
-      const rows = all.filter(l => (!k || l.kind === k) && (!ci || l.city === ci) && (!lv || l.level === lv) &&
+      const q = $('#q').value.trim().toLowerCase(), k = $('#fkind').value, ci = $('#fcity').value, lv = $('#flevel')?.value, sn = $('#fsn')?.checked;
+      const rows = all.filter(l => (!k || l.kind === k) && (!ci || l.city === ci) && (!lv || l.level === lv) && (!sn || l.special_needs) &&
         (!q || [l.name, l.kind, l.level, l.city, l.description].join(' ').toLowerCase().includes(q)));
       const sugg = cat === 'peace' ? `<button class="linkbtn" data-help="volunteer">Raise your hand.</button>` : `<button class="linkbtn" data-suggest>Tell us about them.</button>`;
       $('#results').innerHTML = rows.length ? rows.map(listingCard).join('') :
         `<div class="card empty"><p>${esc(c.empty)} ${sugg}</p></div>`;
       if (rows.length && cat !== 'peace' && cat !== 'classroom') $('#results').innerHTML += `<p class="small">${esc(c.empty.replace("We're growing this list. ", ''))} ${sugg}</p>`;
     };
-    ['#q', '#fkind', '#fcity', '#flevel'].forEach(s => $(s)?.addEventListener('input', draw)); draw();
+    ['#q', '#fkind', '#fcity', '#flevel', '#fsn'].forEach(s => $(s)?.addEventListener('input', draw)); $('#fsn')?.addEventListener('change', draw);
+    if (cat === 'classroom' && location.hash.includes('sn=1') && $('#fsn')) $('#fsn').checked = true;
+    draw();
     if (cat === 'classroom') api.topics('square').then(ts => { const t = ts.find(x => x.title === c.topicTitle); if (t && $('#classtalk')) $('#classtalk').href = `#/square/${t.id}`; }).catch(() => {});
     view().addEventListener('click', e => {
       if (e.target.closest('[data-suggest]')) suggestForm(cat);
@@ -288,17 +292,31 @@ V.square = (id) => id ? `${squareHead()}<p><a href="#/square">← All topics</a>
 V.square.after = async (id) => {
   if (SHOW_PRESENCE) S.cleanup.push(api.presence(n => { const p = $('#presence'); if (p) p.textContent = `Live now (${n})`; }));
   if (!id) {
-    const ts = await api.topics('square');
-    $('#topics').innerHTML = ts.length ? ts.map(t => `<a class="card block" href="#/square/${t.id}"><h2>${esc(t.title)}</h2>${t.body ? `<p>${esc(t.body)}</p>` : ''}${t.locked ? '<p class="tag">Closed</p>' : ''}</a>`).join('')
-      : `<div class="card empty"><p>${esc(COPY.square.empty)}</p></div>`;
+    const all = await api.topics('square'), ts = all.filter(t => !t.grp), sn = cornerRooms(all);
+    $('#topics').innerHTML = (ts.length ? ts.map(topicCard).join('') : `<div class="card empty"><p>${esc(COPY.square.empty)}</p></div>`) +
+      (sn.length ? `<h2 class="group">${esc(COPY.corner.title)}</h2><p class="small">${esc(COPY.corner.safetyShort)}</p>${sn.map(topicCard).join('')}` : '');
     return;
   }
   const t = await api.topic(+id);
   if (!t || t.kind !== 'square') { $('#topicbox').innerHTML = '<p>That topic was not found.</p>'; return; }
-  $('#topicbox').innerHTML = `<div class="card"><h2>${esc(t.title)}</h2>${t.body ? `<p>${esc(t.body)}</p>` : ''}</div>` +
+  $('#topicbox').innerHTML = (t.grp === 'special_needs' ? `<p><a href="#/corner">${esc(COPY.corner.back)}</a></p>` : '') +
+    `<div class="card"><h2>${esc(t.title)}</h2>${t.body ? `<p>${esc(t.body)}</p>` : ''}</div>` +
+    (t.grp === 'special_needs' ? safetyBox() : '') +
     threadShell(t, { prompt: COPY.square.prompt, button: COPY.square.button });
   await mountThread(t, { empty: COPY.square.empty });
 };
+
+// ---------- Special Needs Corner (inside The Classroom; rooms are text-only Town Square topics with grp = 'special_needs') ----------
+const safetyBox = () => { const s = COPY.corner.safety; return `<div class="note safety"><p><strong>${esc(s.lead)}</strong></p><ul>${s.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul><p class="small">${esc(s.foot)}</p></div>`; };
+const topicCard = t => `<a class="card block" href="#/square/${t.id}"><h2>${esc(t.title)}</h2>${t.body ? `<p>${esc(t.body)}</p>` : ''}${t.locked ? '<p class="tag">Closed</p>' : ''}</a>`;
+const cornerRooms = ts => ts.filter(t => t.grp === 'special_needs').sort((a, b) => a.id - b.id);
+V.corner = () => { const c = COPY.corner; return `<p><a href="#/classroom">← The Classroom</a></p><h1>${esc(c.title)}</h1><p class="lead">${esc(c.intro)}</p><p>${esc(c.framework)}</p>
+  ${safetyBox()}
+  <div class="card"><h2>${esc(c.startTitle)}</h2><ol>${c.start.map(s => `<li>${esc(s)}</li>`).join('')}</ol><p class="small">${esc(c.startNote)}</p></div>
+  <h2>${esc(c.roomsTitle)}</h2><div id="rooms" class="list"><p>Loading…</p></div>
+  <p><a href="#/classroom?sn=1">${esc(c.resourcesLink)}</a></p>`; };
+V.corner.after = async () => { const rs = cornerRooms(await api.topics('square'));
+  $('#rooms').innerHTML = rs.length ? rs.map(topicCard).join('') : '<p>Rooms are coming soon.</p>'; };
 
 // ---------- Admin (John only; the database enforces this too) ----------
 const ADMIN_TABS = [['requests', 'Join requests'], ['codes', 'Invite codes'], ['listings', 'Listings'], ['topics', 'Topics and photos'],
@@ -368,9 +386,12 @@ V.admin.after = async (tab = 'requests') => {
           <label>Level (optional)<select name="level"><option value="">None</option>${COPY.dirs.classroom.levels.map(k => `<option ${l.level === k ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
           <label>Deadline (scholarships only, optional)<input name="deadline" type="date" value="${esc(l.deadline)}"></label>` :
           `<label>${COPY.dirs[cat].kindLabel}${cat === 'peace' ? ` (${COPY.peaceKinds.join(', ')})` : ''}<input name="kind" required maxlength="80" value="${esc(l.kind)}"></label>`}
-          <label>City${cat === 'classroom' ? ' (or Online)' : ''}<input name="city" required maxlength="80" value="${esc(l.city)}"></label>
+          <label>City${cat === 'classroom' ? ' (or Online)' : ''}<input name="city" required maxlength="80" list="citylist" autocomplete="off" value="${esc(l.city)}"></label>
+          <datalist id="citylist">${[...new Set(rows.map(x => x.city).filter(Boolean))].sort().map(v => `<option value="${esc(v)}">`).join('')}</datalist>
+          <p class="small">Use City, ST like Atlanta, GA, or Online. Pick an existing city from the list when you can.</p>
           <label>${cat === 'classroom' ? 'Link to apply, or contact' : 'Contact (phone, email, or website)'}<input name="contact" maxlength="200" value="${esc(l.contact)}"></label>
           ${cat === 'peace' ? `<label class="check"><input type="checkbox" name="contact_via_set" ${l.contact_via_set ? 'checked' : ''}> Reach them through The Set (hide contact)</label>` : ''}
+          ${cat === 'classroom' ? `<label class="check"><input type="checkbox" name="special_needs" ${l.special_needs ? 'checked' : ''}> ${esc(COPY.corner.tag)} (shows in the Special needs filter)</label>` : ''}
           ${cat === 'clinic' ? `<label class="check"><input type="checkbox" name="telehealth" ${l.telehealth ? 'checked' : ''}> Telehealth</label>` : ''}
           <label>Short description (optional)<textarea name="description" maxlength="500" rows="2">${esc(l.description)}</textarea></label>
           <label class="check"><input type="checkbox" name="published" ${l.published ? 'checked' : ''}> Published (members can see it)</label>
@@ -380,7 +401,7 @@ V.admin.after = async (tab = 'requests') => {
           try { await api.saveListing({ ...(l.id ? { id: l.id } : {}), category: cat, name: d.name.trim(), kind: d.kind.trim(), city: d.city.trim(),
             contact: d.contact.trim() || null, description: d.description.trim() || null, contact_via_set: !!d.contact_via_set, telehealth: !!d.telehealth,
             published: !!d.published, verified: !!d.verified,
-            ...(cat === 'classroom' ? { level: d.level || null, deadline: d.kind === 'Scholarship' && d.deadline ? d.deadline : null } : {}) }); R.listings(cat); toast('Saved.'); } catch (x) { toast(friendly(x)); } };
+            ...(cat === 'classroom' ? { special_needs: !!d.special_needs, level: d.level || null, deadline: d.kind === 'Scholarship' && d.deadline ? d.deadline : null } : {}) }); R.listings(cat); toast('Saved.'); } catch (x) { toast(friendly(x)); } };
         $('#lf').scrollIntoView({ behavior: 'smooth' });
       };
       box.onclick = async e => {
@@ -397,7 +418,7 @@ V.admin.after = async (tab = 'requests') => {
         <p class="small">${esc(COPY.admin.photosHelp)}</p>
         ${rows.map(t => `<div class="card"><h2><a href="#/${t.kind === 'porch' ? 'porch' : 'square/' + t.id}">${esc(t.title)}</a> <span class="tag">${t.allow_photos ? 'Photos on' : 'Text only'}</span>${t.locked ? ' <span class="tag warn">Locked</span>' : ''}</h2>
           <div class="row"><button class="btn alt small" data-lock="${t.id}" data-l="${t.locked ? 0 : 1}">${t.locked ? 'Reopen' : 'Lock'}</button>
-          <button class="btn ${t.allow_photos ? 'alt ' : ''}small" data-photos="${t.id}" data-on="${t.allow_photos ? 0 : 1}">${t.allow_photos ? 'Turn photos off' : 'Turn photos on'}</button></div></div>`).join('')}`;
+          ${t.grp ? `<span class="small">${esc(COPY.corner.title)} room: always text only</span>` : `<button class="btn ${t.allow_photos ? 'alt ' : ''}small" data-photos="${t.id}" data-on="${t.allow_photos ? 0 : 1}">${t.allow_photos ? 'Turn photos off' : 'Turn photos on'}</button>`}</div></div>`).join('')}`;
       $('#nt').onsubmit = async e => { e.preventDefault(); const d = formData(e.target); await A.createTopic(d.title.trim(), d.body.trim() || null); R.topics(); };
       box.onclick = async e => { const l = e.target.closest('[data-lock]'), ph = e.target.closest('[data-photos]');
         try {
@@ -456,7 +477,7 @@ V.admin.after = async (tab = 'requests') => {
 async function refreshSession() { const s = await api.session(); S.user = s.user; S.profile = s.profile; }
 async function route() {
   S.cleanup.splice(0).forEach(f => { try { f(); } catch {} });
-  const [, key = 'home', arg] = location.hash.split('/');
+  const [, rawKey = 'home', arg] = location.hash.split('/'); const key = rawKey.split('?')[0];
   renderNav();
   if (key === 'signout') { await api.signOut(); await refreshSession(); return go('#/home'); }
   let html, after;
@@ -466,7 +487,7 @@ async function route() {
   } else if (key === 'admin' && !isAdmin()) {
     html = '<div class="card"><h1>Admin only</h1><p>This page is just for John.</p></div>';
   } else {
-    const v = V[key] || V.home; html = v(arg); after = v.after && (() => v.after(arg));
+    const v = V[key] || V.home; html = v(arg?.split('?')[0]); after = v.after && (() => v.after(arg?.split('?')[0]));
   }
   const fresh = view().cloneNode(false); view().replaceWith(fresh); // drop old click handlers
   view().innerHTML = html; view().focus({ preventScroll: true }); window.scrollTo(0, 0);

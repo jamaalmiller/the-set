@@ -19,6 +19,15 @@ Shows the number of members, muted members, join requests waiting, comments, pho
 - **Help requests**: questions from members, with a copy-message helper for replying.
 - **Suggestions**: ideas members sent in.
 
+## Special Needs Corner (inside The Classroom)
+Members reach it from the big **Special Needs Corner** card on The Classroom page. It has a safety reminder, a short "Start here" list for parents who feel lost, and five text-only rooms: Level 1, Level 2, Level 3, Level 4 and Parents Connecting. The rooms are Town Square topics, so flags, auto-hide at 2 flags, slow mode, the link block and Mute all work the same. Photos can never be turned on there.
+- *Lock a room:* Admin, **Topics and photos**, find the room (marked "Special Needs Corner room"), tap **Lock**. Tap **Reopen** to open it again.
+- *Add a special needs resource:* Admin, **Listings**, pick **The Classroom**, **Add listing** (or Edit), tick **Special needs**, fill in the rest, tick **Published**, **Save**. It then shows under the "Special needs only" filter in The Classroom.
+- *Change the wording* (room descriptions, safety reminder, Start here list): it lives in `copy.js` under `corner` (room descriptions are in the database topics).
+
+## City spelling
+When you type a city on a listing, the box suggests cities you've already used in that directory. Pick one so the City filter stays clean. Use **City, ST** like "Atlanta, GA", or "Online".
+
 ## Photo rules (built in, nothing for you to do)
 - Only active members can post photos: JPG, PNG or WebP, 1 per comment.
 - The phone shrinks each photo to about 200–400 KB. Anything over 1 MB is refused by the server.

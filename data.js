@@ -180,7 +180,7 @@ async function supabaseBackend() {
 
 // ------------------------- DEMO backend (no accounts) -------------------------
 function demoBackend() {
-  const KEY = 'theset-demo-v3';
+  const KEY = 'theset-demo-v4';
   const now = () => new Date().toISOString();
   const seed = () => ({
     seq: 100, me: null,
@@ -197,11 +197,18 @@ function demoBackend() {
       { id: 31, category: 'classroom', name: 'Sample Scholarship Fund', kind: 'Scholarship', level: 'college', city: 'Online', contact: 'example.org/apply', deadline: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10), verified: false, published: true, description: 'Sample scholarship for the demo.' },
       { id: 32, category: 'classroom', name: 'Sample Trade Grant', kind: 'Scholarship', level: 'adult/trade', city: 'Sample City', contact: 'example.org/grant', deadline: new Date(Date.now() + 60 * 864e5).toISOString().slice(0, 10), verified: false, published: true },
       { id: 33, category: 'classroom', name: 'Sample Math Tutor', kind: 'Educator', level: 'high school', city: 'Sample City', contact: '555-0105', verified: true, published: true },
+      { id: 35, category: 'classroom', name: 'Sample Behavior Specialist', kind: 'Educator', city: 'Online', contact: '555-0106', special_needs: true, verified: false, published: true, description: 'Sample special needs resource for the demo.' },
     ],
     suggestions: [], help: [],
     topics: [{ id: 8, kind: 'porch', title: 'The Porch', locked: false, allow_photos: true, created_at: now() },
              { id: 9, kind: 'square', title: 'Sample topic: What should The Set talk about first?', body: 'Sample topic for the demo.', locked: false, created_at: now() },
-             { id: 34, kind: 'square', title: 'Schools, college, trades and our kids', body: 'Talk it out: schools, college, trades, and what our kids need.', locked: false, created_at: now() }],
+             { id: 34, kind: 'square', title: 'Schools, college, trades and our kids', body: 'Talk it out: schools, college, trades, and what our kids need.', locked: false, created_at: now() },
+             ...[["Level 1: Everyday Support", "For families building the basics at home and at school. Visual schedules, positive reinforcement, simple strategies, and classroom accommodations that help our kids take part and do more on their own."],
+               ["Level 2: A Little Extra Help", "For families working on something specific, like following directions, telling us what they need, or moving from one activity to the next. Share what's helping and what's hard."],
+               ["Level 3: Focused, Individual Support", "For families with structured, individualized therapy in the mix, often ABA, DTT, or an individualized behavior plan. Talk through the process, the plan, and the progress with parents who've been there."],
+               ["Level 4: Full-Circle Support", "For families whose children need extensive, coordinated help with behavior, communication, or daily living, often with specialized supervision and a team of professionals and caregivers. A place to lean on each other, because this takes a lot."],
+               ["Parents Connecting", "You're not in this alone. Meet parents in similar situations, trade what's worked, and find your people."]]
+               .map(([title, body], i) => ({ id: 40 + i, kind: 'square', grp: 'special_needs', title, body, locked: false, allow_photos: false, created_at: now() }))],
     comments: [{ id: 10, topic_id: 9, parent_id: null, user_id: 'demo-bot', author_name: 'Sample Member', body: 'Sample comment. This is demo text.', hidden: false, removed: false, created_at: now() }],
     reports: [],
   });
@@ -219,7 +226,7 @@ function demoBackend() {
   const BOT_LINES = ['Sample live reply: demo text appears without refresh.', 'Sample comment from a pretend member.', 'Sample: this shows how live comments look.'];
   setInterval(() => { // pretend member posts so the live UI can be seen
     if (!subs.size) return;
-    const t = db.topics.find(t => t.kind === 'square' && !t.locked); if (!t) return;
+    const t = db.topics.find(t => t.kind === 'square' && !t.grp && !t.locked); if (!t) return;
     db.comments.push({ id: id(), topic_id: t.id, parent_id: null, user_id: 'demo-bot', author_name: 'Sample Member',
       body: BOT_LINES[db.seq % 3], hidden: false, removed: false, created_at: now() });
     notify();
