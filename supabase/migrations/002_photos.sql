@@ -6,7 +6,7 @@
 do $$ begin
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'topics' and column_name = 'allow_photos') then
     alter table topics add column allow_photos boolean not null default false;
-    update topics set allow_photos = true where kind = 'porch';  -- first time only; later John's switch wins
+    update topics set allow_photos = true where kind = 'porch';  -- first time only; later the admin's switch wins
   end if;
 end $$;
 

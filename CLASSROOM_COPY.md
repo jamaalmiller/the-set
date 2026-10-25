@@ -1,4 +1,4 @@
-# The Classroom copy (from Content & Culture, approved by John; not yet built)
+# The Classroom copy (from Content & Culture, approved by the admin; not yet built)
 - Homepage block: The Classroom. Scholarships, educators, and real talk about learning, for every age and every stage.
 - Tab intro: Knowledge is legacy. Find scholarships, connect with Black educators, and talk education with the community.
 - Search prompt: What are you looking for? (scholarships, tutoring, teachers, college prep, trade programs)
@@ -8,4 +8,4 @@
 - Discussion line: Talk it out in The Town Square: schools, college, trades, and what our kids need.
 - Note: Scholarship details change. Check the source before you apply.
 - Placement: homepage order Clinic, Counsel, Classroom, Block, Peace Table, Porch, Town Square. Phone bar stays Option B; The Classroom goes under More. Web nav includes all.
-- Rule: no "verified" wording on Classroom listings unless John verified them. About line: add "learn in The Classroom" after the Counsel mention (optional).
+- Rule: no "verified" wording on Classroom listings unless the admin verified them. About line: add "learn in The Classroom" after the Counsel mention (optional).

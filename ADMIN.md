@@ -1,4 +1,4 @@
-# The Set: admin guide (for John)
+# The Set: admin guide (for the admin)
 
 Open the app, sign in, and tap **Admin** in the menu. Only admins can see it, and the database itself refuses admin actions from anyone else.
 

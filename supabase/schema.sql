@@ -1,7 +1,7 @@
 -- =====================================================================
 -- The Set: database setup (run once in Supabase > SQL Editor > Run)
 -- Safe to read: every table is locked by Row Level Security (RLS).
--- An account has ZERO access until it claims an invite code (or John
+-- An account has ZERO access until it claims an invite code (or the admin
 -- makes it admin). Admin powers are enforced here, not just in the app.
 -- =====================================================================
 
@@ -194,7 +194,7 @@ end $$;
 drop trigger if exists comments_rules on comments;
 create trigger comments_rules before insert on comments for each row execute function comments_before_insert();
 
--- 2+ flags from different members hides a comment until John reviews it
+-- 2+ flags from different members hides a comment until the admin reviews it
 create or replace function reports_after_insert() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
@@ -320,12 +320,12 @@ select 'porch', 'The Porch', 'Talk it out.'
 where not exists (select 1 from topics where kind = 'porch');
 
 -- =====================================================================
--- ONE-TIME: make John the admin. First create John's account in
+-- ONE-TIME: make the first admin. First create the admin's account in
 -- Supabase > Authentication > Users > Add user (email + password),
 -- then replace the email below and run ONLY these lines:
 --
 --   insert into profiles (id, display_name, role, guidelines_accepted_at)
---   select id, 'John', 'admin', now() from auth.users where email = 'JOHN-EMAIL-HERE'
+--   select id, 'Admin', 'admin', now() from auth.users where email = 'ADMIN-EMAIL-HERE'
 --   on conflict (id) do update set role = 'admin', status = 'active';
 -- =====================================================================
 
@@ -336,7 +336,7 @@ where not exists (select 1 from topics where kind = 'porch');
 do $$ begin
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'topics' and column_name = 'allow_photos') then
     alter table topics add column allow_photos boolean not null default false;
-    update topics set allow_photos = true where kind = 'porch';  -- first time only; later John's switch wins
+    update topics set allow_photos = true where kind = 'porch';  -- first time only; later the admin's switch wins
   end if;
 end $$;
 

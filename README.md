@@ -30,7 +30,7 @@ The Set is a members-only community site for Black Americans. It works as a webs
 6. Make yourself admin. Go to **Authentication**, then **Users**, then **Add user**, then **Create new user**. Enter your email and a password, check "Auto Confirm", and click **Create**. Then go back to the **SQL Editor** and run this, with your email in it:
    ```sql
    insert into profiles (id, display_name, role, guidelines_accepted_at)
-   select id, 'John', 'admin', now() from auth.users where email = 'YOUR-EMAIL-HERE'
+   select id, 'Admin', 'admin', now() from auth.users where email = 'YOUR-EMAIL-HERE'
    on conflict (id) do update set role = 'admin', status = 'active';
    ```
    You should see "Success. 1 row".
