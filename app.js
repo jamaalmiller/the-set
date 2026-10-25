@@ -591,8 +591,16 @@ V.admin.after = async (tab = 'requests') => {
       box.onclick = async e => { const b = e.target.closest('[data-sh]'); if (b) { await A.suggestionHandled(+b.dataset.sh); R.suggestions(); } };
     },
   };
-  view().addEventListener('click', e => { const c = e.target.closest('[data-copy]'); if (c) { const ta = c.parentElement.querySelector('textarea');
-    navigator.clipboard?.writeText(ta.value).then(() => toast('Copied.'), () => { ta.select(); toast('Select and copy the text.'); }); } });
+  // Copy message: always puts clean, readable plain text on the clipboard (never URL-encoded).
+  const cleanText = t => { let x = String(t); if (/%(20|0A|0D|2C|27)/i.test(x)) { try { x = decodeURIComponent(x.replace(/\+/g, ' ')); } catch (_) {} } return x.replace(/\r\n?/g, '\n'); };
+  const copyPlain = async (ta) => {
+    const text = cleanText(ta.value);
+    try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; } } catch (_) {}
+    try { ta.readOnly = false; ta.value = text; ta.focus(); ta.select(); ta.setSelectionRange(0, text.length); const ok = document.execCommand('copy'); ta.readOnly = true; ta.blur(); return ok; } catch (_) { return false; }
+  };
+  if (!view()._copyBound) { view()._copyBound = true;
+    view().addEventListener('click', async e => { const c = e.target.closest('[data-copy]'); if (!c) return; const ta = c.parentElement.querySelector('textarea');
+      toast(await copyPlain(ta) ? 'Copied. Paste it into your email or text.' : 'Press and hold the text, then tap Copy.'); }); }
   await (R[tab] || R.requests)();
 };
 
