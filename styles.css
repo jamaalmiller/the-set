@@ -54,3 +54,4 @@ input[type=checkbox] { width:24px; height:24px; min-height:0; margin:0; }
 .photopick { margin:8px 0; } .photopick label.btn { display:inline-flex; font-weight:700; margin:0; }
 .status .stats { list-style:none; padding:0; margin:.4em 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:4px 12px; }
 a.card.block.corner { border-left-color:var(--ok); background:#f2f8f3; } .note.safety { border-left:4px solid var(--ok); padding-left:10px; } h2.group { margin-top:24px; }
+.sub { margin:-6px 0 8px; font-weight:600; color:var(--ok); }

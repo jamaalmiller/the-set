@@ -1,4 +1,4 @@
--- Special Needs Corner test. Ends with an error ON PURPOSE so nothing is saved.
+-- The Circle test. Ends with an error ON PURPOSE so nothing is saved.
 do $$
 declare
   a uuid := gen_random_uuid(); b uuid := gen_random_uuid(); x uuid := gen_random_uuid();

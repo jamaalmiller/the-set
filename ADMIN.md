@@ -19,9 +19,9 @@ Shows the number of members, muted members, join requests waiting, comments, pho
 - **Help requests**: questions from members, with a copy-message helper for replying.
 - **Suggestions**: ideas members sent in.
 
-## Special Needs Corner (inside The Classroom)
-Members reach it from the big **Special Needs Corner** card on The Classroom page. It has a safety reminder, a short "Start here" list for parents who feel lost, and five text-only rooms: Level 1, Level 2, Level 3, Level 4 and Parents Connecting. The rooms are Town Square topics, so flags, auto-hide at 2 flags, slow mode, the link block and Mute all work the same. Photos can never be turned on there.
-- *Lock a room:* Admin, **Topics and photos**, find the room (marked "Special Needs Corner room"), tap **Lock**. Tap **Reopen** to open it again.
+## The Circle (inside The Classroom)
+Members reach it from the big **The Circle** card on The Classroom page. It has a safety reminder, a short "Start here" list for parents who feel lost, and five text-only rooms: Level 1, Level 2, Level 3, Level 4 and Parents Connecting. The rooms are Town Square topics, so flags, auto-hide at 2 flags, slow mode, the link block and Mute all work the same. Photos can never be turned on there.
+- *Lock a room:* Admin, **Topics and photos**, find the room (marked "The Circle room"), tap **Lock**. Tap **Reopen** to open it again.
 - *Add a special needs resource:* Admin, **Listings**, pick **The Classroom**, **Add listing** (or Edit), tick **Special needs**, fill in the rest, tick **Published**, **Save**. It then shows under the "Special needs only" filter in The Classroom.
 - *Change the wording* (room descriptions, safety reminder, Start here list): it lives in `copy.js` under `corner` (room descriptions are in the database topics).
 

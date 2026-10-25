@@ -481,11 +481,11 @@ select 'square', 'Schools, college, trades and our kids', 'Talk it out: schools,
 where not exists (select 1 from topics where kind = 'square' and title = 'Schools, college, trades and our kids');
 
 -- =====================================================================
--- The Set: Special Needs Corner inside The Classroom. Safe to re-run.
+-- The Set: The Circle inside The Classroom. Safe to re-run.
 -- Reuses topics + comments (members-only, flags, auto-hide at 2, lock, mute,
 -- slow mode, link block). Rooms are text only (allow_photos = false).
 -- =====================================================================
--- Optional group for topics; Corner rooms have grp = 'special_needs'
+-- Optional group for topics; Circle rooms have grp = 'special_needs'
 alter table topics add column if not exists grp text;
 alter table topics drop constraint if exists topics_grp_check;
 alter table topics add constraint topics_grp_check check (grp is null or grp in ('special_needs'));
@@ -518,6 +518,6 @@ update topics t set body = v.body from (values
   ('Parents Connecting', 'You''re not in this alone. Meet parents in similar situations, trade what''s worked, and find your people.')
 ) as v(title, body) where t.grp = 'special_needs' and t.title = v.title and t.body is distinct from v.body;
 update topics set allow_photos = false where grp = 'special_needs';
--- Corner rooms can never have photos turned on
+-- Circle rooms can never have photos turned on
 alter table topics drop constraint if exists topics_grp_nophotos;
 alter table topics add constraint topics_grp_nophotos check (grp is null or not allow_photos);

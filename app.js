@@ -119,9 +119,9 @@ V.welcome = () => `<div class="card welcome"><h1>Welcome to The Set.</h1><p clas
 // ---------- Directories (shared by Clinic, Counsel, Block, Peace Table) ----------
 function dirView(cat) {
   const c = COPY.dirs[cat];
-  return `<h1>${esc(c.title)}</h1><p class="lead">${esc(c.intro)}</p>${notes(c.notes)}
+  return `<h1>${esc(c.title)}</h1><p class="sub">${esc(c.subtitle)}</p><p class="lead">${esc(c.intro)}</p>${notes(c.notes)}
     ${cat === 'peace' ? `<div class="row"><button class="btn" data-help="help">Request help</button></div>` : ''}
-    ${cat === 'classroom' ? `<a class="card block corner" href="#/corner"><h2>${esc(COPY.corner.title)}</h2><p>${esc(COPY.corner.card)}</p></a>` : ''}
+    ${cat === 'classroom' ? `<a class="card block corner" href="#/corner"><h2>${esc(COPY.corner.title)}</h2><p class="sub">${esc(COPY.corner.subtitle)}</p><p>${esc(COPY.corner.card)}</p></a>` : ''}
     <div class="filters card">
       <label class="wide">Search<input id="q" type="search" placeholder="${esc(c.search)}"></label>
       <label>${esc(c.kindLabel)}<select id="fkind"><option value="">All</option></select></label>
@@ -294,7 +294,7 @@ V.square.after = async (id) => {
   if (!id) {
     const all = await api.topics('square'), ts = all.filter(t => !t.grp), sn = cornerRooms(all);
     $('#topics').innerHTML = (ts.length ? ts.map(topicCard).join('') : `<div class="card empty"><p>${esc(COPY.square.empty)}</p></div>`) +
-      (sn.length ? `<h2 class="group">${esc(COPY.corner.title)}</h2><p class="small">${esc(COPY.corner.safetyShort)}</p>${sn.map(topicCard).join('')}` : '');
+      (sn.length ? `<h2 class="group">${esc(COPY.corner.title)}</h2><p class="sub">${esc(COPY.corner.subtitle)}</p><p class="small">${esc(COPY.corner.safetyShort)}</p>${sn.map(topicCard).join('')}` : '');
     return;
   }
   const t = await api.topic(+id);
@@ -306,13 +306,14 @@ V.square.after = async (id) => {
   await mountThread(t, { empty: COPY.square.empty });
 };
 
-// ---------- Special Needs Corner (inside The Classroom; rooms are text-only Town Square topics with grp = 'special_needs') ----------
+// ---------- The Circle (inside The Classroom; rooms are text-only Town Square topics with grp = 'special_needs') ----------
 const safetyBox = () => { const s = COPY.corner.safety; return `<div class="note safety"><p><strong>${esc(s.lead)}</strong></p><ul>${s.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul><p class="small">${esc(s.foot)}</p></div>`; };
 const topicCard = t => `<a class="card block" href="#/square/${t.id}"><h2>${esc(t.title)}</h2>${t.body ? `<p>${esc(t.body)}</p>` : ''}${t.locked ? '<p class="tag">Closed</p>' : ''}</a>`;
 const cornerRooms = ts => ts.filter(t => t.grp === 'special_needs').sort((a, b) => a.id - b.id);
-V.corner = () => { const c = COPY.corner; return `<p><a href="#/classroom">← The Classroom</a></p><h1>${esc(c.title)}</h1><p class="lead">${esc(c.intro)}</p><p>${esc(c.framework)}</p>
+V.corner = () => { const c = COPY.corner; return `<p><a href="#/classroom">← The Classroom</a></p><h1>${esc(c.title)}</h1><p class="sub">${esc(c.subtitle)}</p><p class="lead">${esc(c.intro)}</p><div class="card start"><h2>${esc(c.startTitle)}</h2>${c.startIntro.map(p => `<p>${esc(p)}</p>`).join('')}<ul>${c.start.map(s => `<li>${esc(s)}</li>`).join('')}</ul>${c.startOutro.map(p => `<p>${esc(p)}</p>`).join('')}<p class="small">${esc(c.contact)}</p></div>
+  <p>${esc(c.framework)}</p>
   ${safetyBox()}
-  <div class="card"><h2>${esc(c.startTitle)}</h2><ol>${c.start.map(s => `<li>${esc(s)}</li>`).join('')}</ol><p class="small">${esc(c.startNote)}</p></div>
+  
   <h2>${esc(c.roomsTitle)}</h2><div id="rooms" class="list"><p>Loading…</p></div>
   <p><a href="#/classroom?sn=1">${esc(c.resourcesLink)}</a></p>`; };
 V.corner.after = async () => { const rs = cornerRooms(await api.topics('square'));
