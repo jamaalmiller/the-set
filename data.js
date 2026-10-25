@@ -19,6 +19,12 @@ const FRIENDLY = {
   PHOTO_LIMIT: "That's a lot of photos for one hour. Give it a little while and try again.",
   PHOTO_TYPE: 'Please pick a photo (JPG, PNG, or WebP).',
   PHOTO_BIG: 'That photo is too big, even after shrinking. Please try a different one.',
+  CONTACT_OFF: 'Request contact is paused right now. Please check back soon.',
+  CONTACT_BLOCKED: "Contact requests aren't available on your account. Reach out to John if you have questions.",
+  CONTACT_LIMIT: "You've sent 3 requests today. Please try again tomorrow.",
+  CONTACT_EMPTY: 'Add a short note so we know how to help.',
+  SELF_TARGET: "That's you! Pick someone else.",
+  BAD_TARGET: "That didn't go through. Please try again.",
   EMPTY: 'Write something or add a photo first.',
 };
 export function friendly(err) {
@@ -95,6 +101,8 @@ async function supabaseBackend() {
     },
     async suggest(category, details) { chk(await sb.from('listing_suggestions').insert({ category, details })); },
     async help(r) { chk(await sb.from('help_requests').insert(r)); },
+    async contactOn() { const d = chk(await sb.from('site_settings').select('contact_requests_on').maybeSingle()); return !!d?.contact_requests_on; },
+    async sendContact(t) { chk(await sb.rpc('send_contact_request', { p_target_type: t.type, p_listing_id: t.listing_id || null, p_member_id: t.member_id || null, p_message: t.message, p_preference: t.preference || null, p_topic_id: t.topic_id || null })); },
     async topics(kind) { return chk(await sb.from('topics').select('*').eq('kind', kind).order('created_at', { ascending: false })); },
     async topic(id) { return chk(await sb.from('topics').select('*').eq('id', id).maybeSingle()); },
     async comments(topicId) {
@@ -146,6 +154,10 @@ async function supabaseBackend() {
       async revokeCode(code) { chk(await sb.from('invite_codes').update({ revoked: true }).eq('code', code)); },
       async help() { return chk(await sb.from('help_requests').select('*').order('created_at', { ascending: false })); },
       async helpHandled(id) { chk(await sb.from('help_requests').update({ handled: true }).eq('id', id)); },
+      async contacts() { return chk(await sb.from('contact_requests').select('*, requester:profiles!contact_requests_requester_id_fkey(display_name, contact_blocked), member:profiles!contact_requests_target_member_id_fkey(display_name), listing:listings(name)').order('created_at', { ascending: false }).limit(200)); },
+      async setContact(id, status) { chk(await sb.from('contact_requests').update({ status }).eq('id', id)); },
+      async blockContact(uid, blocked) { chk(await sb.from('profiles').update({ contact_blocked: blocked }).eq('id', uid)); },
+      async setContactOn(on) { chk(await sb.from('site_settings').update({ contact_requests_on: on }).eq('id', true)); },
       async suggestions() { return chk(await sb.from('listing_suggestions').select('*').order('created_at', { ascending: false })); },
       async suggestionHandled(id) { chk(await sb.from('listing_suggestions').update({ handled: true }).eq('id', id)); },
       async reports() {
@@ -263,6 +275,8 @@ function demoBackend() {
       save();
     },
     async suggest(category, details) { need(me(), 'NOT_MEMBER'); db.suggestions.unshift({ id: id(), user_id: db.me, category, details, handled: false, created_at: now() }); save(); },
+    async contactOn() { return db.contactOn !== false; },
+    async sendContact(t) { need(me(), 'NOT_MEMBER'); (db.contacts ||= []).unshift({ id: id(), requester_id: db.me, requester: { display_name: me().display_name }, target_type: t.type, target_listing_id: t.listing_id || null, target_member_id: t.member_id || null, listing: t.name && t.type === 'listing' ? { name: t.name } : null, member: t.type === 'member' ? { display_name: t.name } : null, message: t.message, contact_preference: t.preference || null, status: 'new', created_at: now() }); save(); },
     async help(r) { need(me(), 'NOT_MEMBER'); db.help.unshift({ id: id(), user_id: db.me, ...r, handled: false, created_at: now() }); save(); },
     async topics(kind) { need(me(), 'NOT_MEMBER'); return db.topics.filter(t => t.kind === kind).slice().reverse(); },
     async topic(tid) { need(me(), 'NOT_MEMBER'); return db.topics.find(t => t.id === tid) || null; },
@@ -302,6 +316,10 @@ function demoBackend() {
       async revokeCode(code) { db.codes.find(c => c.code === code).revoked = true; save(); },
       async help() { return db.help; },
       async helpHandled(hid) { db.help.find(h => h.id === hid).handled = true; save(); },
+      async contacts() { return db.contacts || []; },
+      async setContact(cid, status) { db.contacts.find(c => c.id === cid).status = status; save(); },
+      async blockContact(uid, b) { const p = db.profiles.find(p => p.id === uid); if (p) p.contact_blocked = b; save(); },
+      async setContactOn(on) { db.contactOn = on; save(); },
       async suggestions() { return db.suggestions; },
       async suggestionHandled(sid) { db.suggestions.find(s => s.id === sid).handled = true; save(); },
       async reports() { return db.reports.filter(r => !r.reviewed).map(r => ({ ...r, comments: db.comments.find(c => c.id === r.comment_id) })); },
@@ -318,7 +336,7 @@ function demoBackend() {
         return { members: db.profiles.filter(p => p.status !== 'removed').length, muted: db.profiles.filter(p => p.status === 'muted').length,
           join_pending: db.joins.filter(j => j.status === 'pending').length, comments: db.comments.filter(c => !c.removed).length,
           photos: ph.length, photo_bytes: 0, flags_open: new Set(db.reports.filter(r => !r.reviewed).map(r => r.comment_id)).size,
-          hidden: db.comments.filter(c => c.hidden && !c.removed).length, help_open: db.help.filter(h => !h.handled).length, unused_photos: 0 };
+          hidden: db.comments.filter(c => c.hidden && !c.removed).length, help_open: db.help.filter(h => !h.handled).length, contact_new: (db.contacts || []).filter(c => c.status === 'new').length, unused_photos: 0 };
       },
       async removeComment(cid, path) { if (path) demoPhotos.delete(path); await this.setComment(cid, { removed: true }); },
       async cleanupPhotos() { return 0; },

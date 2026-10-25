@@ -17,6 +17,7 @@ Shows the number of members, muted members, join requests waiting, comments, pho
 - **Flags**: posts members flagged, with their photo if there is one. Any post with 2 flags is hidden automatically. **Restore** brings a post back. **Remove** takes the post down and deletes its photo file for good.
 - **Members**: mute, unmute or remove members, and change roles.
 - **Help requests**: questions from members, with a copy-message helper for replying.
+- **Contact requests**: private notes members send with **Request contact** (see below). The tab shows how many are new.
 - **Suggestions**: ideas members sent in.
 
 ## The Circle (inside The Classroom)
@@ -24,6 +25,14 @@ Members reach it from the big **The Circle** card on The Classroom page. It has 
 - *Lock a room:* Admin, **Topics and photos**, find the room (marked "The Circle room"), tap **Lock**. Tap **Reopen** to open it again.
 - *Add a special needs resource:* Admin, **Listings**, pick **The Classroom**, **Add listing** (or Edit), tick **Special needs**, fill in the rest, tick **Published**, **Save**. It then shows under the "Special needs only" filter in The Classroom.
 - *Change the wording* (room descriptions, safety reminder, Start here list): it lives in `copy.js` under `corner` (room descriptions are in the database topics).
+
+## Request contact (private notes, no DMs)
+Members can tap **Request contact** on any published listing (Clinic, Counsel, Classroom, Block, Peace Table) or on another member's name in **The Porch** and **Town Square**. It is never offered in The Circle rooms, and the database refuses it there too. They write a short note and how they'd like to be reached (email or phone). Only you can read it. Nothing is shown to the other person or posted anywhere. You pass it along yourself.
+- *Each request shows:* From, To, Note, How to reach, Date, and a tag (New, Handled, Passed along, Held for later, Blocked).
+- *Buttons:* **Mark handled** (done), **Pass it along** (you've shared it; it stays visible), **Hold for later**, **Block requester** (asks to confirm; that member can't send any more requests until you tap **Unblock requester**).
+- *Built-in limits:* text only, no links, 3 requests per member per day, muted or removed members can't send, and nobody can request themselves.
+- *Off switch:* at the top of the Contact requests tab, tap **Turn off**. The button disappears and the server refuses new requests right away. Tap **Turn on** to bring it back.
+- Educator listings don't need to show a phone or email. Leave Contact empty (or tick "reach through The Set") and people use Request contact instead.
 
 ## City spelling
 When you type a city on a listing, the box suggests cities you've already used in that directory. Pick one so the City filter stays clean. Use **City, ST** like "Atlanta, GA", or "Online".

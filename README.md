@@ -64,3 +64,5 @@ Note: free Supabase projects pause after about a week with no visitors. Open the
 
 ## Photos (v2)
 Members can add one photo per comment in topics with photos on (The Porch). Photos are shrunk on the phone, limited to 1 MB on the server, kept in the private `photos` bucket, and shown with signed links. The schema is in `supabase/migrations/002_photos.sql` and the tests are in `supabase/test/photos_test.sql`. See ADMIN.md for admin tasks.
+
+Members can send a private **Request contact** note about a listing or another member (The Porch and Town Square only, never The Circle). Notes go to the admin only; there is no in-app messaging. Schema: `supabase/migrations/005_contact_requests.sql`; tests: `supabase/test/contact_requests_test.sql` (rolls itself back).

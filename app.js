@@ -135,16 +135,18 @@ const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString([], { month: '
 const daysLeft = d => Math.ceil((new Date(d + 'T23:59:59') - Date.now()) / DAY);
 function listingCard(l) {
   const cl = l.category === 'classroom', dl = cl && l.kind === 'Scholarship' && l.deadline ? daysLeft(l.deadline) : null;
-  const contact = l.contact_via_set ? 'Reach them through The Set: use Request help below.' : (l.contact || '');
+  const contact = l.contact_via_set ? (S.contactOn ? 'Reach them through The Set: tap Request contact.' : 'Reach them through The Set: use Request help below.') : (l.contact || '');
   return `<article class="card listing"><h2>${esc(l.name)}</h2>
     <p class="meta">${esc(l.kind)}${l.level ? ' · ' + esc(l.level) : ''} · ${esc(l.city)}</p>
     <p class="tags">${l.verified ? '<span class="badge">✓ Verified by The Set</span>' : ''}${l.telehealth ? '<span class="tag">Telehealth</span>' : ''}${cl && l.special_needs ? `<span class="tag">${esc(COPY.corner.tag)}</span>` : ''}${dl !== null && dl >= 0 && dl <= 14 ? `<span class="tag warn">${esc(COPY.dirs.classroom.closingSoon)}</span>` : ''}${isAdmin() && !l.published ? '<span class="tag warn">Not published</span>' : ''}</p>
     ${dl !== null ? `<p class="deadline">${esc(COPY.dirs.classroom.deadline(fmtDate(l.deadline)))}</p>` : ''}
-    ${l.description ? `<p>${esc(l.description)}</p>` : ''}${contact ? `<p class="contact">${esc(contact)}</p>` : ''}</article>`;
+    ${l.description ? `<p>${esc(l.description)}</p>` : ''}${contact ? `<p class="contact">${esc(contact)}</p>` : ''}
+    ${S.contactOn && l.published ? `<div class="actions"><button class="linkbtn" data-contact-listing="${l.id}" data-name="${esc(l.name)}">${esc(COPY.contact.title)}</button></div>` : ''}</article>`;
 }
 function dirAfter(cat) {
   return async () => {
     const c = COPY.dirs[cat]; let all = [];
+    S.contactOn = await api.contactOn().catch(() => false);
     try { all = await api.listings(cat); } catch (x) { $('#results').innerHTML = `<p class="error">${esc(friendly(x))}</p>`; return; }
     const opts = (sel, vals) => { $(sel).innerHTML += [...new Set(vals)].sort().map(v => `<option>${esc(v)}</option>`).join(''); };
     opts('#fkind', cat === 'peace' ? [...COPY.peaceKinds, ...all.map(l => l.kind)] : cat === 'classroom' ? c.kinds : all.map(l => l.kind)); opts('#fcity', all.map(l => l.city));
@@ -164,6 +166,7 @@ function dirAfter(cat) {
     view().addEventListener('click', e => {
       if (e.target.closest('[data-suggest]')) suggestForm(cat);
       const h = e.target.closest('[data-help]'); if (h) helpForm(h.dataset.help);
+      const k = e.target.closest('[data-contact-listing]'); if (k) contactForm($('#helpbox'), { type: 'listing', listing_id: +k.dataset.contactListing, name: k.dataset.name });
     });
   };
 }
@@ -176,6 +179,27 @@ function suggestForm(cat) {
   $('#sugg').onsubmit = async e => { e.preventDefault();
     try { await api.suggest(cat, formData(e.target).details.trim()); $('#helpbox').innerHTML = '<div class="card"><p>Thank you. John will take a look.</p></div>'; }
     catch (x) { toast(friendly(x)); } };
+}
+// ---------- Request contact (private note to John; never shown to other members) ----------
+function contactForm(box, target) {
+  const c = COPY.contact;
+  box.innerHTML = `<form id="contactform" class="card form"><h2>${esc(c.title)}</h2><p>${esc(c.intro)}</p>
+    <p class="meta"><strong>${esc(c.to(target.name))}</strong></p>
+    <label>${esc(c.note)}<textarea name="message" maxlength="500" rows="4" required></textarea></label>
+    <label>${esc(c.reach)}<input name="preference" maxlength="200" autocomplete="off"></label>
+    <p class="note">${esc(c.privacy)}</p>
+    <div class="row"><button class="btn">${esc(c.button)}</button><button type="button" class="btn alt" id="contactcancel">${esc(c.cancel)}</button></div></form>`;
+  const f = $('#contactform'); f.scrollIntoView({ behavior: 'smooth' }); f.message.focus();
+  $('#contactcancel').onclick = () => { box.innerHTML = ''; };
+  let busy = false;
+  f.onsubmit = async e => { e.preventDefault(); if (busy) return; const d = formData(f), message = d.message.trim(), preference = d.preference.trim();
+    if (message.length < 2) return toast(c.empty);
+    if (LINK_RE.test(message) || /https?:\/\/|www\./i.test(preference)) return toast(friendly('NO_LINKS'));
+    busy = true; f.querySelector('button.btn').disabled = true;
+    try { await api.sendContact({ ...target, message, preference });
+      box.innerHTML = `<div class="card" role="status"><p class="lead">${esc(c.sent)}</p></div>`; }
+    catch (x) { const m = friendly(x); toast(m.startsWith('Something went wrong') ? c.error : m); busy = false; f.querySelector('button.btn').disabled = false; }
+  };
 }
 function helpForm(reason) {
   const vol = reason === 'volunteer';
@@ -208,15 +232,16 @@ function threadShell(t, o) {
       <button class="btn">${esc(o.button)}</button></form>
     <div id="thread" class="list" aria-live="polite"></div>`;
 }
-function commentHtml(c, replies) {
+function commentHtml(c, replies, canContact = false) {
   const mine = c.user_id === S.profile?.id;
   return `<article class="comment ${c.hidden || c.removed ? 'muted' : ''}" id="c${c.id}">
     <p class="meta"><strong>${esc(c.author_name)}</strong> · ${when(c.created_at)}${c.hidden ? ' · <em>hidden (flagged)</em>' : ''}${c.removed ? ' · <em>removed</em>' : ''}</p>
     ${c.body ? `<p class="body">${esc(c.body)}</p>` : ''}
     ${c.photo_path && !c.removed ? `<img class="photo" data-photo="${esc(c.photo_path)}" alt="${esc(COPY.photos.alt(c.author_name))}" loading="lazy" decoding="async" width="320" height="240">` : ''}
     <div class="actions"><button class="linkbtn" data-reply="${c.id}" data-name="${esc(c.author_name)}">Reply</button>
-    ${mine ? '' : `<button class="linkbtn" data-flag="${c.id}">Flag</button>`}</div>
-    ${replies.length ? `<div class="replies">${replies.map(r => commentHtml(r, [])).join('')}</div>` : ''}</article>`;
+    ${mine ? '' : `<button class="linkbtn" data-flag="${c.id}">Flag</button>`}
+    ${canContact && !mine && c.user_id && !c.removed ? `<button class="linkbtn" data-contact-member="${esc(c.user_id)}" data-name="${esc(c.author_name)}">${esc(COPY.contact.title)}</button>` : ''}</div>
+    ${replies.length ? `<div class="replies">${replies.map(r => commentHtml(r, [], canContact)).join('')}</div>` : ''}</article>`;
 }
 async function fillPhotos(root) {
   const imgs = [...root.querySelectorAll('img[data-photo]')]; if (!imgs.length) return;
@@ -226,13 +251,16 @@ async function fillPhotos(root) {
 async function mountThread(t, o) {
   let replyTo = null;
   const box = $('#thread');
+  // Request contact on member names: The Porch and Town Square only, never The Circle rooms (the database checks this too).
+  const canContact = !t.grp && (t.kind === 'porch' || t.kind === 'square') && await api.contactOn().catch(() => false);
+  if (canContact) box.insertAdjacentHTML('beforebegin', '<div id="contactbox"></div>');
   const load = async () => {
     const all = await api.comments(t.id); const byId = new Map(all.map(c => [c.id, c]));
     const root = c => { let r = c; while (r.parent_id && byId.get(r.parent_id)) r = byId.get(r.parent_id); return r.id; };
     const tops = all.filter(c => !c.parent_id || !byId.has(c.parent_id));
     const kids = id => all.filter(c => c.parent_id && c.id !== id && root(c) === id);
     const ordered = o.newestFirst ? tops.slice().reverse() : tops;
-    box.innerHTML = tops.length ? ordered.map(c => commentHtml(c, kids(c.id))).join('') : `<div class="card empty"><p>${esc(o.empty)}</p></div>`;
+    box.innerHTML = tops.length ? ordered.map(c => commentHtml(c, kids(c.id), canContact)).join('') : `<div class="card empty"><p>${esc(o.empty)}</p></div>`;
     await fillPhotos(box);
   };
   const gate = () => {
@@ -269,6 +297,8 @@ async function mountThread(t, o) {
     if (r) { replyTo = +r.dataset.reply; const p = $('#replying'); p.hidden = false;
       p.innerHTML = `Replying to ${esc(r.dataset.name)} <button type="button" class="linkbtn" id="cancelreply">Cancel</button>`;
       $('#cancelreply').onclick = () => { replyTo = null; p.hidden = true; }; $('#composer textarea').focus(); }
+    const k = e.target.closest('[data-contact-member]');
+    if (k && canContact) contactForm($('#contactbox'), { type: 'member', member_id: k.dataset.contactMember, name: k.dataset.name, topic_id: t.id });
     const f = e.target.closest('[data-flag]');
     if (f && confirm('Flag this comment for a moderator to review?')) {
       try { await api.flag(+f.dataset.flag); toast('Thanks. A moderator will take a look.'); await load(); } catch (x) { toast(friendly(x)); }
@@ -321,7 +351,7 @@ V.corner.after = async () => { const rs = cornerRooms(await api.topics('square')
 
 // ---------- Admin (John only; the database enforces this too) ----------
 const ADMIN_TABS = [['requests', 'Join requests'], ['codes', 'Invite codes'], ['listings', 'Listings'], ['topics', 'Topics and photos'],
-  ['flags', 'Flags'], ['members', 'Members'], ['help', 'Help requests'], ['suggestions', 'Suggestions']];
+  ['flags', 'Flags'], ['members', 'Members'], ['help', 'Help requests'], ['contact', 'Contact requests'], ['suggestions', 'Suggestions']];
 V.admin = (tab = 'requests') => `<h1>Admin</h1><div id="status" class="card status"><p class="small">Loading site status…</p></div><nav class="tabs">${ADMIN_TABS.map(([k, l]) => `<a href="#/admin/${k}" aria-current="${k === tab ? 'page' : 'false'}">${l}</a>`).join('')}</nav><div id="adm"><p>Loading…</p></div>`;
 V.admin.after = async (tab = 'requests') => {
   const A = api.admin, box = $('#adm');
@@ -332,10 +362,11 @@ V.admin.after = async (tab = 'requests') => {
     const el = $('#status'); if (!el) return;
     try {
       const s = await A.stats();
+      const ct = document.querySelector('a[href="#/admin/contact"]'); if (ct) ct.textContent = 'Contact requests' + (s.contact_new ? ` (${s.contact_new})` : '');
       el.innerHTML = `<h2>${esc(COPY.admin.statusTitle)}</h2><ul class="stats">
         <li><b>${s.members}</b> members${s.muted ? ` (${s.muted} paused)` : ''}</li><li><b>${s.join_pending}</b> join requests waiting</li>
         <li><b>${s.comments}</b> comments</li><li><b>${s.photos}</b> photos · ${mb(s.photo_bytes)} MB of 1,024 MB free space</li>
-        <li><b>${s.flags_open}</b> flagged${s.hidden ? ` (${s.hidden} hidden)` : ''} awaiting review</li><li><b>${s.help_open}</b> help requests open</li></ul>
+        <li><b>${s.flags_open}</b> flagged${s.hidden ? ` (${s.hidden} hidden)` : ''} awaiting review</li><li><b>${s.help_open}</b> help requests open</li><li><b>${s.contact_new || 0}</b> new contact requests</li></ul>
         ${s.unused_photos ? `<p class="small">${esc(COPY.admin.unused(s.unused_photos))} <button class="btn alt small" data-cleanup>${esc(COPY.admin.cleanup)}</button></p>` : ''}`;
     } catch (x) { el.innerHTML = `<p class="small">${esc(friendly(x))}</p>`; }
   };
@@ -461,6 +492,30 @@ V.admin.after = async (tab = 'requests') => {
         <p>${esc(h.message)}</p><p class="small">${esc(h.city || '')} · ${esc(h.best_contact || 'no contact given')} · ${when(h.created_at)}</p>
         ${h.handled ? '' : `<button class="btn small" data-handled="${h.id}">Mark handled</button>`}</div>`).join('') : '<p>No help requests.</p>';
       box.onclick = async e => { const b = e.target.closest('[data-handled]'); if (b) { await A.helpHandled(+b.dataset.handled); R.help(); } };
+    },
+    async contact() {
+      const c = COPY.contact, [rows, on] = await Promise.all([A.contacts(), api.contactOn()]);
+      const to = r => r.target_type === 'listing' ? (r.listing?.name || c.removedListing) : (r.member?.display_name || c.removedMember);
+      const btn = (id, st, label, alt = true) => `<button class="btn ${alt ? 'alt ' : ''}small" data-cst="${st}" data-cid="${id}">${esc(label)}</button>`;
+      box.innerHTML = `<h2>${esc(c.adminTitle)}</h2><div class="card"><p>${esc(on ? c.switchOn : c.switchOff)}</p><button class="btn ${on ? 'alt ' : ''}small" data-con="${on ? 0 : 1}">${esc(on ? c.turnOff : c.turnOn)}</button></div>` +
+        (rows.length ? rows.map(r => `<div class="card"><p class="tags"><span class="tag ${r.status === 'new' ? 'warn' : ''}">${esc(c.tags[r.status] || r.status)}</span>${r.requester?.contact_blocked ? `<span class="tag">${esc(c.tags.blocked)}</span>` : ''}</p>
+          <p><strong>${esc(c.from)}:</strong> ${esc(r.requester?.display_name || '')}</p><p><strong>${esc(c.toLabel)}:</strong> ${esc(to(r))}</p>
+          <p><strong>${esc(c.noteLabel)}:</strong> ${esc(r.message)}</p><p><strong>${esc(c.howLabel)}:</strong> ${esc(r.contact_preference || '—')}</p>
+          <p class="small"><strong>${esc(c.dateLabel)}:</strong> ${when(r.created_at)}</p>
+          <div class="row">${r.status !== 'handled' ? btn(r.id, 'handled', c.handled, false) : ''}${r.status !== 'passed' ? btn(r.id, 'passed', c.pass) : ''}${r.status !== 'held' ? btn(r.id, 'held', c.hold) : ''}
+          ${r.requester?.contact_blocked ? `<button class="btn alt small" data-unblock="${esc(r.requester_id)}">${esc(c.unblock)}</button>` : `<button class="btn alt small" data-block="${esc(r.requester_id)}" data-cid="${r.id}">${esc(c.block)}</button>`}</div><div class="confirm"></div></div>`).join('') : `<p>${esc(c.none)}</p>`);
+      box.onclick = async e => {
+        try {
+          const s = e.target.closest('[data-cst]'), sw = e.target.closest('[data-con]'), b = e.target.closest('[data-block]'), u = e.target.closest('[data-unblock]');
+          const yes = e.target.closest('[data-blockyes]'), no = e.target.closest('[data-blockno]');
+          if (s) { await A.setContact(+s.dataset.cid, s.dataset.cst); R.contact(); status(); }
+          if (sw) { await A.setContactOn(sw.dataset.con === '1'); R.contact(); }
+          if (b) b.closest('.card').querySelector('.confirm').innerHTML = `<p>${esc(c.blockConfirm)}</p><div class="row"><button class="btn small" data-blockyes="${esc(b.dataset.block)}" data-cid="${b.dataset.cid}">Block</button><button class="btn alt small" data-blockno>Cancel</button></div>`;
+          if (no) no.closest('.confirm').innerHTML = '';
+          if (yes) { await A.blockContact(yes.dataset.blockyes, true); await A.setContact(+yes.dataset.cid, 'blocked'); toast('Done.'); R.contact(); status(); }
+          if (u) { await A.blockContact(u.dataset.unblock, false); toast('Done.'); R.contact(); }
+        } catch (x) { toast(friendly(x)); }
+      };
     },
     async suggestions() {
       const rows = await A.suggestions();
