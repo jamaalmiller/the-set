@@ -287,8 +287,27 @@ revoke all on all tables in schema public from anon;
 grant insert on join_requests to anon;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant usage, select on all sequences in schema public to anon, authenticated;
-revoke all on function is_member() from anon;
-revoke all on function is_admin() from anon;
+revoke all on function is_member() from public, anon;
+revoke all on function is_admin() from public, anon;
+grant execute on function is_member() to authenticated;
+grant execute on function is_admin() to authenticated;
+-- trigger functions: never callable directly (triggers still fire)
+revoke all on function comments_before_insert() from public, anon, authenticated;
+revoke all on function reports_after_insert() from public, anon, authenticated;
+
+-- ---------- Performance tune-ups (Supabase advisor) ----------
+create index if not exists help_requests_user_idx on help_requests (user_id);
+create index if not exists invite_codes_created_by_idx on invite_codes (created_by);
+create index if not exists invite_codes_used_by_idx on invite_codes (used_by);
+create index if not exists join_requests_code_idx on join_requests (invite_code);
+create index if not exists listing_suggestions_user_idx on listing_suggestions (user_id);
+create index if not exists reports_user_idx on reports (user_id);
+create index if not exists topics_created_by_idx on topics (created_by);
+alter policy profiles_self on profiles using (id = (select auth.uid()) or is_admin());
+alter policy sugg_insert on listing_suggestions with check (is_member() and user_id = (select auth.uid()) and handled = false);
+alter policy help_insert on help_requests with check (is_member() and user_id = (select auth.uid()) and handled = false);
+alter policy reports_insert on reports with check (is_member() and user_id = (select auth.uid()) and reviewed = false
+  and not exists (select 1 from comments c where c.id = comment_id and c.user_id = (select auth.uid())));
 
 -- ---------- Live comments (Supabase Realtime) ----------
 do $$ begin
