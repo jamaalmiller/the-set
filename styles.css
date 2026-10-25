@@ -75,3 +75,6 @@ a.card.block.corner { border-left-color:var(--ok); background:#f2f8f3; } .note.s
 @keyframes livepulse { 50% { opacity:.45; } }
 .theme-corner { --accent:#1e4d34; } .sec-head.theme-corner { background:radial-gradient(circle at 92% 50%,transparent 26px,rgba(255,255,255,.14) 27px,rgba(255,255,255,.14) 29px,transparent 30px),#2b4a3a; }
 .theme-corner .note.safety { background:#fff6e6; border-left-color:#1e4d34; }
+/* Home "What's happening" strip: text only, shared cream base */
+.happening h3 { margin:16px 0 6px; } .hap-item { display:block; color:var(--ink); text-decoration:none; padding:10px 0; border-top:1px solid rgba(0,0,0,.08); }
+.hap-item p { margin:4px 0; } .hap-item .tag { font-size:.8em; }

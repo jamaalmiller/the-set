@@ -43,6 +43,12 @@ When you type a city on a listing, the box suggests cities you've already used i
 - A member can post up to 10 photos an hour, and links are still blocked.
 - Photos are private. Only signed-in members can see them, and hidden or removed posts' photos can't be opened.
 
+## Community tab ("In the community" on Home)
+- Members' Home page shows a "What's happening" strip: the newest Porch and Town Square posts plus the newest published listings. It fills itself. The Circle rooms, Peace Table requests, contact requests, hidden posts and photos never appear there.
+- Under it, "In the community" shows up to 3 items you write in **Admin, then Community**.
+- To add one: type a title (up to 120 characters), a short blurb (up to 300), and optionally a link. Links must start with https:// and should go to the original source. Keep the tone informative, no hype. Tick **Show on Home** and tap **Add item**.
+- **Edit** changes an item, **Hide/Show** takes it off Home or puts it back, **Delete** removes it for good. Higher **Order** numbers show first, then newest. Text only, no photos.
+
 ## Supabase dashboard tasks (supabase.com/dashboard, then open project "The Set")
 1. **Back up your data.** The free plan has no automatic backups, so do this monthly. Go to left sidebar **Table Editor**, pick a table (e.g. `profiles`, `comments`, `listings`), then the **Export** button, then **Export as CSV**.
 2. **See storage and bandwidth use.** Click your organization, then **Usage**. Watch *Storage Size* (1 GB free) and *Egress* (5 GB free per month).

@@ -51,7 +51,31 @@ V.home = () => `
   <section class="hero"><h1>${esc(COPY.tagline)}</h1><p class="lead">${esc(COPY.subline)}</p>
   ${S.profile ? `<a class="btn" href="#/porch">Go to The Porch</a>` : `<div class="row"><a class="btn" href="#/code">Pull up</a><a class="btn alt" href="#/request">Request an invite</a></div>
   <p class="small">Pull up = I have an invite code. Already a member? <a href="#/signin">Sign in</a></p>`}</section>
+  ${S.profile ? `<section class="happening card" aria-labelledby="hap-h"><h2 id="hap-h">${esc(COPY.happening.title)}</h2><p class="small">${esc(COPY.happening.sub)}</p>
+    <div id="happening"><p class="small">Loading…</p></div><div id="community"></div></section>` : ''}
   <div class="grid">${COPY.homeBlocks.map(([k, t, d]) => `<a class="card block theme-${k}" href="#/${k}"><h2 class="blockhead">${ICON[k] ? svgIcon(k) : ''}${esc(t)}</h2><p>${esc(d)}</p></a>`).join('')}</div>`;
+const ago = t => { const m = Math.max(0, Math.round((Date.now() - new Date(t)) / 60000));
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} hr ago` : m < 10080 ? `${Math.round(m / 1440)} d ago` : when(t); };
+const excerpt = (t, n = 120) => { const x = String(t || '').replace(/\s+/g, ' ').trim(); return x.length > n ? x.slice(0, n - 1).trimEnd() + '…' : x; };
+const safeHttps = u => (/^https:\/\/[^\s<>"]+$/.test(u || '') ? u : '');
+V.home.after = async () => {
+  if (!S.profile) return;
+  const H = COPY.happening, C = COPY.community;
+  try {
+    const { posts, listings } = await api.happening();
+    const items = [...posts.map(p => `<a class="hap-item" href="${p.kind === 'porch' ? '#/porch' : `#/square/${p.topic_id}`}"><span class="tag">${esc(H.tag)}</span>
+        <p class="meta"><strong>${esc(p.author_name)}</strong> · ${esc(p.kind === 'porch' ? 'The Porch' : p.topic)} · ${esc(ago(p.created_at))}</p><p>${esc(excerpt(p.body))}</p></a>`),
+      ...listings.map(l => `<a class="hap-item" href="#/${esc(l.category)}"><span class="tag">${esc(H.newListing)}</span>
+        <p><strong>${esc(l.name)}</strong></p><p class="meta">${esc(COPY.dirs[l.category]?.title || '')}${l.city ? ' · ' + esc(l.city) : ''}</p></a>`)];
+    const el = $('#happening'); if (el) el.innerHTML = items.length ? items.join('') : `<p>${esc(H.empty)}</p>`;
+  } catch { const el = $('#happening'); if (el) el.innerHTML = `<p class="small">${esc(H.loadError)}</p>`; }
+  try {
+    const cs = await api.community(), el = $('#community');
+    if (el && cs.length) el.innerHTML = `<h3>${esc(C.title)}</h3>` + cs.map(i => { const u = safeHttps(i.url);
+      return `<div class="hap-item"><span class="tag">${esc(C.tag)}</span><p><strong>${esc(i.title)}</strong></p>${i.blurb ? `<p>${esc(i.blurb)}</p>` : ''}
+        ${u ? `<p><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(C.readMore)} ↗</a></p>` : ''}</div>`; }).join('');
+  } catch { /* community block is optional */ }
+};
 
 V.about = () => `<h1>About The Set</h1>${COPY.about.map(p => `<p>${esc(p)}</p>`).join('')}`;
 V.guidelines = () => `<h1>Guidelines</h1>${guidelinesHtml()}`;
@@ -364,7 +388,7 @@ V.corner.after = async () => { const rs = cornerRooms(await api.topics('square')
 
 // ---------- Admin (John only; the database enforces this too) ----------
 const ADMIN_TABS = [['requests', 'Join requests'], ['codes', 'Invite codes'], ['listings', 'Listings'], ['topics', 'Topics and photos'],
-  ['flags', 'Flags'], ['members', 'Members'], ['help', 'Help requests'], ['contact', 'Contact requests'], ['suggestions', 'Suggestions']];
+  ['flags', 'Flags'], ['members', 'Members'], ['help', 'Help requests'], ['contact', 'Contact requests'], ['community', 'Community'], ['suggestions', 'Suggestions']];
 V.admin = (tab = 'requests') => `<h1>Admin</h1><div id="status" class="card status"><p class="small">Loading site status…</p></div><nav class="tabs">${ADMIN_TABS.map(([k, l]) => `<a href="#/admin/${k}" aria-current="${k === tab ? 'page' : 'false'}">${l}</a>`).join('')}</nav><div id="adm"><p>Loading…</p></div>`;
 V.admin.after = async (tab = 'requests') => {
   const A = api.admin, box = $('#adm');
@@ -527,6 +551,36 @@ V.admin.after = async (tab = 'requests') => {
           if (no) no.closest('.confirm').innerHTML = '';
           if (yes) { await A.blockContact(yes.dataset.blockyes, true); await A.setContact(+yes.dataset.cid, 'blocked'); toast('Done.'); R.contact(); status(); }
           if (u) { await A.blockContact(u.dataset.unblock, false); toast('Done.'); R.contact(); }
+        } catch (x) { toast(friendly(x)); }
+      };
+    },
+    async community() {
+      const c = COPY.community, rows = await A.communityAll();
+      const form = (i = {}) => `<form class="card form" data-cform="${i.id || ''}"><label>${esc(c.titleLabel)}<input name="title" maxlength="120" required value="${esc(i.title || '')}"></label>
+        <label>${esc(c.blurbLabel)}<textarea name="blurb" maxlength="300" rows="3">${esc(i.blurb || '')}</textarea></label>
+        <label>${esc(c.urlLabel)}<input name="url" type="url" inputmode="url" placeholder="https://" pattern="https://.+" value="${esc(i.url || '')}"></label><p class="small">${esc(c.urlHint)}</p>
+        <label>${esc(c.sortLabel)}<input name="sort" type="number" value="${i.sort ?? 0}"></label>
+        <label class="check"><input type="checkbox" name="published" ${i.published ? 'checked' : ''}> ${esc(c.publishLabel)}</label>
+        <button class="btn small">${esc(i.id ? c.save : c.add)}</button></form>`;
+      box.innerHTML = `<h2>${esc(c.adminTitle)}</h2><p class="small">${esc(c.adminIntro)}</p>${form()}` + (rows.length ? rows.map(i => `<div class="card" data-ci="${i.id}">
+        <h2>${esc(i.title)} <span class="tag">${esc(i.published ? c.live : c.hidden)}</span></h2>${i.blurb ? `<p>${esc(i.blurb)}</p>` : ''}${i.url ? `<p class="small">${esc(i.url)}</p>` : ''}
+        <p class="small">${when(i.created_at)} · ${esc(c.sortLabel)} ${i.sort}</p><div class="row"><button class="btn small" data-cedit="${i.id}">${esc(c.edit)}</button>
+        <button class="btn alt small" data-ctog="${i.id}">${esc(i.published ? c.hide : c.show)}</button><button class="btn alt small" data-cdel="${i.id}">${esc(c.del)}</button></div><div class="slot"></div></div>`).join('') : `<p>${esc(c.none)}</p>`);
+      const byId = id => rows.find(r => r.id === +id);
+      box.onsubmit = async e => { const f = e.target.closest('[data-cform]'); if (!f) return; e.preventDefault();
+        const d = Object.fromEntries(new FormData(f)), url = (d.url || '').trim();
+        if (url && !/^https:\/\/[^\s<>"]+$/.test(url)) return toast(friendly('BAD_URL'));
+        const it = { title: d.title.trim(), blurb: d.blurb.trim() || null, url: url || null, sort: parseInt(d.sort, 10) || 0, published: !!d.published };
+        if (f.dataset.cform) it.id = +f.dataset.cform;
+        try { await A.saveCommunity(it); toast('Saved.'); R.community(); } catch (x) { toast(friendly(x)); } };
+      box.onclick = async e => {
+        const ed = e.target.closest('[data-cedit]'), tg = e.target.closest('[data-ctog]'), dl = e.target.closest('[data-cdel]'), yes = e.target.closest('[data-cdelyes]'), no = e.target.closest('[data-cdelno]');
+        try {
+          if (ed) ed.closest('.card').querySelector('.slot').innerHTML = form(byId(ed.dataset.cedit));
+          if (tg) { const i = byId(tg.dataset.ctog); await A.saveCommunity({ id: i.id, published: !i.published }); R.community(); }
+          if (dl) dl.closest('.card').querySelector('.slot').innerHTML = `<p>${esc(c.delConfirm)}</p><div class="row"><button class="btn small" data-cdelyes="${dl.dataset.cdel}">${esc(c.del)}</button><button class="btn alt small" data-cdelno>Cancel</button></div>`;
+          if (no) no.closest('.slot').innerHTML = '';
+          if (yes) { await A.deleteCommunity(+yes.dataset.cdelyes); toast('Deleted.'); R.community(); }
         } catch (x) { toast(friendly(x)); }
       };
     },

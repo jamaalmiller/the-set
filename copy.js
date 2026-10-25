@@ -129,4 +129,25 @@ export const COPY = {
     none: 'No contact requests yet.',
     removedListing: 'a listing that was removed', removedMember: 'a member who left',
   },
+  // Home strip. Change the title here (an alternative, "On The Set Today", is pending John's OK).
+  happening: {
+    title: "What's happening",
+    sub: "What's happening with your people and our community.",
+    tag: 'The Set',
+    empty: 'Quiet on The Set right now. Start something.',
+    newListing: 'New listing',
+    loadError: "Couldn't load the latest right now. Pull down or come back in a bit.",
+  },
+  community: {
+    title: 'In the community',
+    tag: 'Community',
+    readMore: 'Read the original',
+    adminTitle: 'Community items',
+    adminIntro: 'Short, text-only items for the Home page. Members see the 3 newest published items. Higher "Order" numbers show first.',
+    titleLabel: 'Title (up to 120 characters)', blurbLabel: 'Short blurb (up to 300 characters)',
+    urlLabel: 'Link (optional, must start with https://)', urlHint: 'Link to the original source. Keep the tone informative, no hype.',
+    sortLabel: 'Order', publishLabel: 'Show on Home',
+    add: 'Add item', save: 'Save', edit: 'Edit', hide: 'Hide', show: 'Show', del: 'Delete', delConfirm: 'Delete this item for good?',
+    live: 'Showing', hidden: 'Hidden', none: 'No community items yet.',
+  },
 };

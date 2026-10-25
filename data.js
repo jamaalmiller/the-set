@@ -25,11 +25,13 @@ const FRIENDLY = {
   CONTACT_EMPTY: 'Add a short note so we know how to help.',
   SELF_TARGET: "That's you! Pick someone else.",
   BAD_TARGET: "That didn't go through. Please try again.",
+  BAD_URL: 'Links must start with https:// and point to the original source.',
   EMPTY: 'Write something or add a photo first.',
 };
 export function friendly(err) {
   const m = String(err?.message || err || '');
   for (const k of Object.keys(FRIENDLY)) if (m.includes(k)) return FRIENDLY[k];
+  if (/community_items_url/.test(m)) return FRIENDLY.BAD_URL;
   if (/duplicate key|unique/i.test(m)) return 'You already did that.';
   if (/Invalid login/i.test(m)) return 'That email or password did not match.';
   if (/too large|exceeded the maximum|payload/i.test(m)) return FRIENDLY.PHOTO_BIG;
@@ -103,6 +105,16 @@ async function supabaseBackend() {
     async help(r) { chk(await sb.from('help_requests').insert(r)); },
     async contactOn() { const d = chk(await sb.from('site_settings').select('contact_requests_on').maybeSingle()); return !!d?.contact_requests_on; },
     async sendContact(t) { chk(await sb.rpc('send_contact_request', { p_target_type: t.type, p_listing_id: t.listing_id || null, p_member_id: t.member_id || null, p_message: t.message, p_preference: t.preference || null, p_topic_id: t.topic_id || null })); },
+    async happening() {
+      const [c, l] = await Promise.all([
+        sb.from('comments').select('id, topic_id, author_name, body, created_at, topics!inner(kind, title, grp)')
+          .eq('hidden', false).eq('removed', false).order('created_at', { ascending: false }).limit(25),
+        sb.from('listings').select('id, category, name, city, created_at').eq('published', true).order('created_at', { ascending: false }).limit(3)]);
+      const posts = chk(c).filter(x => x.topics && !x.topics.grp && x.body).slice(0, 5)
+        .map(x => ({ id: x.id, topic_id: x.topic_id, kind: x.topics.kind, topic: x.topics.title, author_name: x.author_name, body: x.body, created_at: x.created_at }));
+      return { posts, listings: chk(l) };
+    },
+    async community() { return chk(await sb.from('community_items').select('*').eq('published', true).order('sort', { ascending: false }).order('created_at', { ascending: false }).limit(3)); },
     async topics(kind) { return chk(await sb.from('topics').select('*').eq('kind', kind).order('created_at', { ascending: false })); },
     async topic(id) { return chk(await sb.from('topics').select('*').eq('id', id).maybeSingle()); },
     async comments(topicId) {
@@ -170,6 +182,9 @@ async function supabaseBackend() {
       },
       async members() { return chk(await sb.from('profiles').select('*').order('created_at', { ascending: false })); },
       async setMember(id, status) { chk(await sb.from('profiles').update({ status }).eq('id', id)); },
+      async communityAll() { return chk(await sb.from('community_items').select('*').order('sort', { ascending: false }).order('created_at', { ascending: false })); },
+      async saveCommunity(it) { const { id, ...rest } = it; if (id) chk(await sb.from('community_items').update(rest).eq('id', id)); else chk(await sb.from('community_items').insert(rest)); },
+      async deleteCommunity(id) { chk(await sb.from('community_items').delete().eq('id', id)); },
       async createTopic(title, body) { chk(await sb.from('topics').insert({ kind: 'square', title, body, created_by: profile.id })); },
       async lockTopic(id, locked) { chk(await sb.from('topics').update({ locked }).eq('id', id)); },
       async topicPhotos(id, allow_photos) { chk(await sb.from('topics').update({ allow_photos }).eq('id', id)); },
@@ -278,6 +293,16 @@ function demoBackend() {
     async contactOn() { return db.contactOn !== false; },
     async sendContact(t) { need(me(), 'NOT_MEMBER'); (db.contacts ||= []).unshift({ id: id(), requester_id: db.me, requester: { display_name: me().display_name }, target_type: t.type, target_listing_id: t.listing_id || null, target_member_id: t.member_id || null, listing: t.name && t.type === 'listing' ? { name: t.name } : null, member: t.type === 'member' ? { display_name: t.name } : null, message: t.message, contact_preference: t.preference || null, status: 'new', created_at: now() }); save(); },
     async help(r) { need(me(), 'NOT_MEMBER'); db.help.unshift({ id: id(), user_id: db.me, ...r, handled: false, created_at: now() }); save(); },
+    async happening() {
+      need(me(), 'NOT_MEMBER');
+      const tp = new Map(db.topics.map(t => [t.id, t]));
+      const posts = db.comments.filter(c => !c.hidden && !c.removed && c.body && tp.get(c.topic_id) && !tp.get(c.topic_id).grp)
+        .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 5)
+        .map(c => ({ ...c, kind: tp.get(c.topic_id).kind, topic: tp.get(c.topic_id).title }));
+      const listings = db.listings.filter(l => l.published).slice().reverse().slice(0, 3);
+      return { posts, listings };
+    },
+    async community() { need(me(), 'NOT_MEMBER'); return (db.community ||= []).filter(i => i.published).sort((a, b) => (b.sort - a.sort) || (a.created_at < b.created_at ? 1 : -1)).slice(0, 3); },
     async topics(kind) { need(me(), 'NOT_MEMBER'); return db.topics.filter(t => t.kind === kind).slice().reverse(); },
     async topic(tid) { need(me(), 'NOT_MEMBER'); return db.topics.find(t => t.id === tid) || null; },
     async comments(tid) { return db.comments.filter(c => c.topic_id === tid && (isAdmin() || (!c.hidden && !c.removed))); },
@@ -327,6 +352,10 @@ function demoBackend() {
       async setComment(cid, f) { Object.assign(db.comments.find(c => c.id === cid), f); if (f.hidden === false || f.removed) db.reports.forEach(r => { if (r.comment_id === cid) r.reviewed = true; }); notify(); },
       async members() { return db.profiles; },
       async setMember(mid, status) { db.profiles.find(p => p.id === mid).status = status; save(); },
+      async communityAll() { return (db.community ||= []).slice().sort((a, b) => (b.sort - a.sort) || (a.created_at < b.created_at ? 1 : -1)); },
+      async saveCommunity(it) { db.community ||= []; if (it.url && !/^https:\/\/[^\s<>"]+$/.test(it.url)) throw new Error('BAD_URL');
+        if (it.id) Object.assign(db.community.find(x => x.id === it.id), it); else db.community.push({ sort: 0, ...it, id: id(), created_at: now() }); save(); },
+      async deleteCommunity(cid) { db.community = (db.community || []).filter(x => x.id !== cid); save(); },
       async createTopic(title, body) { db.topics.push({ id: id(), kind: 'square', title, body, locked: false, created_at: now() }); save(); },
       async lockTopic(tid, locked) { db.topics.find(t => t.id === tid).locked = locked; save(); },
       async topicPhotos(tid, on) { db.topics.find(t => t.id === tid).allow_photos = on; save(); },
