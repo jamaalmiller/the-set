@@ -51,7 +51,7 @@ V.home = () => `
   <section class="hero"><h1>${esc(COPY.tagline)}</h1><p class="lead">${esc(COPY.subline)}</p>
   ${S.profile ? `<a class="btn" href="#/porch">Go to The Porch</a>` : `<div class="row"><a class="btn" href="#/code">Pull up</a><a class="btn alt" href="#/request">Request an invite</a></div>
   <p class="small">Pull up = I have an invite code. Already a member? <a href="#/signin">Sign in</a></p>`}</section>
-  <div class="grid">${COPY.homeBlocks.map(([k, t, d]) => `<a class="card block" href="#/${k}"><h2>${esc(t)}</h2><p>${esc(d)}</p></a>`).join('')}</div>`;
+  <div class="grid">${COPY.homeBlocks.map(([k, t, d]) => `<a class="card block theme-${k}" href="#/${k}"><h2 class="blockhead">${ICON[k] ? svgIcon(k) : ''}${esc(t)}</h2><p>${esc(d)}</p></a>`).join('')}</div>`;
 
 V.about = () => `<h1>About The Set</h1>${COPY.about.map(p => `<p>${esc(p)}</p>`).join('')}`;
 V.guidelines = () => `<h1>Guidelines</h1>${guidelinesHtml()}`;
@@ -116,10 +116,24 @@ V.signin.after = () => $('#signin').onsubmit = async e => {
 V.welcome = () => `<div class="card welcome"><h1>Welcome to The Set.</h1><p class="lead">${esc(COPY.welcome)}</p>
   <div class="row"><a class="btn" href="#/porch">Say hello on the Porch</a><a class="btn alt" href="#/guidelines">Read the Guidelines</a></div></div>`;
 
+// ---------- Section headers: one small line icon per section (header + home block only) ----------
+const ICON = {
+  clinic: '<path d="M12 20s-6-4-6-9a3.5 3.5 0 0 1 6-2.4A3.5 3.5 0 0 1 18 11c0 5-6 9-6 9z"/><path d="M3 15c2 0 3 1 4 2m14-2c-2 0-3 1-4 2"/>',
+  counsel: '<path d="M12 4v16M8 20h8M5 7h14M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z"/>',
+  classroom: '<path d="M4 20l2-6L16 4l4 4L10 18zM14 6l4 4M4 20l6-2"/>',
+  block: '<path d="M9 21h6M12 21V9M8 9h8l-2-4h-4zM12 5V3"/>',
+  peace: '<circle cx="12" cy="12" r="5"/><circle cx="12" cy="3.5" r="1.5"/><circle cx="12" cy="20.5" r="1.5"/><circle cx="3.5" cy="12" r="1.5"/><circle cx="20.5" cy="12" r="1.5"/>',
+  porch: '<path d="M5 3v4M19 3v4M5 7h14M7 7v7h10V7M6 17q6 3 12 0"/>',
+  square: '<circle cx="12" cy="10" r="6"/><path d="M12 7v3l2 1.5M10 21h4M12 16v5"/>',
+  corner: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>',
+};
+const svgIcon = k => `<svg class="sec-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
+const secHead = (k, title, extra = '') => `<header class="sec-head theme-${k}">${svgIcon(k)}<h1>${esc(title)}</h1>${extra}</header>`;
+
 // ---------- Directories (shared by Clinic, Counsel, Block, Peace Table) ----------
 function dirView(cat) {
   const c = COPY.dirs[cat];
-  return `<h1>${esc(c.title)}</h1><p class="sub">${esc(c.subtitle)}</p><p class="lead">${esc(c.intro)}</p>${notes(c.notes)}
+  return `<div class="theme theme-${cat}">${secHead(cat, c.title)}<p class="sub">${esc(c.subtitle)}</p><p class="lead">${esc(c.intro)}</p>${notes(c.notes)}
     ${cat === 'peace' ? `<div class="row"><button class="btn" data-help="help">Request help</button></div>` : ''}
     ${cat === 'classroom' ? `<a class="card block corner" href="#/corner"><h2>${esc(COPY.corner.title)}</h2><p class="sub">${esc(COPY.corner.subtitle)}</p><p>${esc(COPY.corner.card)}</p></a>` : ''}
     <div class="filters card">
@@ -128,7 +142,7 @@ function dirView(cat) {
       ${cat === 'classroom' ? `<label>Level<select id="flevel"><option value="">All</option>${c.levels.map(v => `<option>${esc(v)}</option>`).join('')}</select></label>` : ''}
       <label>City<select id="fcity"><option value="">All</option></select></label>
       ${cat === 'classroom' ? `<label class="check"><input type="checkbox" id="fsn"> ${esc(COPY.corner.filter)}</label>` : ''}
-    </div>${c.discussion ? `<p class="small"><a href="#/square" id="classtalk">${esc(c.discussion)}</a></p>` : ''}<div id="results" class="list" aria-live="polite"><p>Loading…</p></div><div id="helpbox"></div>`;
+    </div>${c.discussion ? `<p class="small"><a href="#/square" id="classtalk">${esc(c.discussion)}</a></p>` : ''}<div id="results" class="list" aria-live="polite"><p>Loading…</p></div><div id="helpbox"></div></div>`;
 }
 const DAY = 864e5;
 const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
@@ -306,7 +320,7 @@ async function mountThread(t, o) {
   });
 }
 
-V.porch = () => `<h1>The Porch</h1><p class="lead">${esc(COPY.porch.intro)}</p><div id="porchbox"><p>Loading…</p></div>`;
+V.porch = () => `<div class="theme theme-porch">${secHead('porch', 'The Porch')}<p class="lead">${esc(COPY.porch.intro)}</p><div id="porchbox"><p>Loading…</p></div></div>`;
 V.porch.after = async () => {
   const [t] = await api.topics('porch');
   if (!t) { $('#porchbox').innerHTML = `<p>${esc(COPY.porch.empty)}</p>`; return; }
@@ -314,7 +328,7 @@ V.porch.after = async () => {
   await mountThread(t, { empty: COPY.porch.empty, newestFirst: true });
 };
 
-const squareHead = () => `<h1>The Town Square</h1><p class="lead">${esc(COPY.square.intro)}</p>
+const squareHead = () => `${secHead('square', 'The Town Square', '<span class="live"><span class="dot"></span>Live</span>')}<p class="lead">${esc(COPY.square.intro)}</p>
   <p class="protect">${esc(COPY.square.protect)}</p><p class="small">${esc(COPY.square.moderation)} <a href="#/guidelines">Guidelines</a></p>
   ${SHOW_PRESENCE ? '<p id="presence" class="small" aria-live="polite"></p>' : ''}`;
 V.square = (id) => id ? `${squareHead()}<p><a href="#/square">← All topics</a></p><div id="topicbox"><p>Loading…</p></div>`
@@ -340,12 +354,12 @@ V.square.after = async (id) => {
 const safetyBox = () => { const s = COPY.corner.safety; return `<div class="note safety"><p><strong>${esc(s.lead)}</strong></p><ul>${s.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul><p class="small">${esc(s.foot)}</p></div>`; };
 const topicCard = t => `<a class="card block" href="#/square/${t.id}"><h2>${esc(t.title)}</h2>${t.body ? `<p>${esc(t.body)}</p>` : ''}${t.locked ? '<p class="tag">Closed</p>' : ''}</a>`;
 const cornerRooms = ts => ts.filter(t => t.grp === 'special_needs').sort((a, b) => a.id - b.id);
-V.corner = () => { const c = COPY.corner; return `<p><a href="#/classroom">← The Classroom</a></p><h1>${esc(c.title)}</h1><p class="sub">${esc(c.subtitle)}</p><p class="lead">${esc(c.intro)}</p><div class="card start"><h2>${esc(c.startTitle)}</h2>${c.startIntro.map(p => `<p>${esc(p)}</p>`).join('')}<ul>${c.start.map(s => `<li>${esc(s)}</li>`).join('')}</ul>${c.startOutro.map(p => `<p>${esc(p)}</p>`).join('')}<p class="small">${esc(c.contact)}</p></div>
+V.corner = () => { const c = COPY.corner; return `<div class="theme theme-corner"><p><a href="#/classroom">← The Classroom</a></p>${secHead('corner', c.title)}<p class="sub">${esc(c.subtitle)}</p><p class="lead">${esc(c.intro)}</p><div class="card start"><h2>${esc(c.startTitle)}</h2>${c.startIntro.map(p => `<p>${esc(p)}</p>`).join('')}<ul>${c.start.map(s => `<li>${esc(s)}</li>`).join('')}</ul>${c.startOutro.map(p => `<p>${esc(p)}</p>`).join('')}<p class="small">${esc(c.contact)}</p></div>
   <p>${esc(c.framework)}</p>
   ${safetyBox()}
   
   <h2>${esc(c.roomsTitle)}</h2><div id="rooms" class="list"><p>Loading…</p></div>
-  <p><a href="#/classroom?sn=1">${esc(c.resourcesLink)}</a></p>`; };
+  <p><a href="#/classroom?sn=1">${esc(c.resourcesLink)}</a></p></div>`; };
 V.corner.after = async () => { const rs = cornerRooms(await api.topics('square'));
   $('#rooms').innerHTML = rs.length ? rs.map(topicCard).join('') : '<p>Rooms are coming soon.</p>'; };
 

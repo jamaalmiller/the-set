@@ -55,3 +55,23 @@ input[type=checkbox] { width:24px; height:24px; min-height:0; margin:0; }
 .status .stats { list-style:none; padding:0; margin:.4em 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:4px 12px; }
 a.card.block.corner { border-left-color:var(--ok); background:#f2f8f3; } .note.safety { border-left:4px solid var(--ok); padding-left:10px; } h2.group { margin-top:24px; }
 .sub { margin:-6px 0 8px; font-weight:600; color:var(--ok); }
+/* ---------- Section themes: shared cream base; each section changes only accent, one line icon, and header strip ---------- */
+.sec-head { position:relative; display:flex; align-items:center; gap:12px; color:#fff; background:var(--brand); border-radius:var(--r); padding:18px 16px; margin:4px 0 14px; }
+.sec-head h1 { margin:0; font-size:1.75rem; } .sec-icon { width:36px; height:36px; flex:none; }
+.blockhead { display:flex; align-items:center; gap:8px; } .blockhead .sec-icon { width:26px; height:26px; color:var(--accent); }
+.theme-clinic { --accent:#1f5f56; } .sec-head.theme-clinic { background:#1f5f56; }
+.theme-counsel { --accent:#1b2a4a; } .sec-head.theme-counsel { background:#1b2a4a; border-bottom:4px solid #c9a227; } .sec-head.theme-counsel .sec-icon { color:#e3c463; }
+.theme-counsel h1, .theme-counsel h2 { font-family:Georgia,"Iowan Old Style","Times New Roman",serif; }
+.theme-classroom { --accent:#1e4d34; } .sec-head.theme-classroom { background:#21392c; border:3px dashed rgba(255,255,255,.55); }
+.sec-head.theme-classroom h1 { font-family:"Segoe Print","Bradley Hand","Marker Felt","Chalkboard SE","Comic Sans MS",cursive; letter-spacing:.01em; }
+.theme-block { --accent:#8a4b08; } .sec-head.theme-block { background:radial-gradient(circle at 88% 30%,rgba(242,181,68,.35),transparent 38%),linear-gradient(180deg,#2a2340,#4a3050); }
+.sec-head.theme-block .sec-icon { color:#f2c46a; } .theme-block .listing { box-shadow:inset 4px 0 0 #f2b544; }
+.theme-peace { --accent:#5c4630; } .sec-head.theme-peace { background:#5c4630; }
+.theme-porch { --accent:#8a4b08; } .sec-head.theme-porch { background:linear-gradient(180deg,#6e3d0c,#8a4b08); } .sec-head.theme-porch .sec-icon { color:#ffd27a; }
+.theme-square { --accent:#9a2c1f; } .sec-head.theme-square { background:#8a2a1c; }
+.live { position:absolute; top:10px; right:12px; font-size:.8rem; font-weight:700; display:flex; align-items:center; gap:6px; }
+.live .dot { width:9px; height:9px; border-radius:50%; background:#7ee08f; }
+@media (prefers-reduced-motion:no-preference) { .live .dot { animation:livepulse 2.4s ease-in-out infinite; } }
+@keyframes livepulse { 50% { opacity:.45; } }
+.theme-corner { --accent:#1e4d34; } .sec-head.theme-corner { background:radial-gradient(circle at 92% 50%,transparent 26px,rgba(255,255,255,.14) 27px,rgba(255,255,255,.14) 29px,transparent 30px),#2b4a3a; }
+.theme-corner .note.safety { background:#fff6e6; border-left-color:#1e4d34; }
