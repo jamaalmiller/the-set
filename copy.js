@@ -60,4 +60,17 @@ export const COPY = {
   approved: { subject: "You're in. Pull up.", body: code => `Welcome to The Set. We're glad you're here. Here's your way in: ${code}. Get settled and say hello on the Porch.` },
   declined: { subject: 'About your request to join The Set.', body: 'Thanks for your interest in The Set. We\'re not able to bring you in right now. This space is for Black Americans, and we keep it close so everyone in it can speak freely. Wishing you well.' },
   install: 'Keep The Set close. Add it to your home screen.',
+  photos: {
+    add: 'Add a photo', removePick: 'Take it off', previewAlt: 'Your photo, ready to post',
+    rule: 'One photo per post. No links. Give it 10 seconds between posts. Photos are for members only.',
+    noPhotosRule: 'No links or photos here for now. Give it 10 seconds between posts.',
+    sending: 'Sending your photo…', unavailable: 'Photo not available.',
+    alt: name => `Photo shared by ${name}`,
+  },
+  admin: {
+    statusTitle: 'Site status',
+    photosHelp: 'Photos on means members can add one photo per post there. Turn photos off any time and new photo posts stop right away.',
+    unused: n => `${n} photo file(s) are no longer used by any post.`,
+    cleanup: 'Clean up', cleaned: n => `Cleaned up ${n} photo file(s).`,
+  },
 };

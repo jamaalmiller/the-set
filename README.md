@@ -60,3 +60,7 @@ Note: free Supabase projects pause after about a week with no visitors. Open the
 - Flags: 2 flags from different members hide a comment until you review it in **Admin**, then **Flags**.
 - The app never sends emails. When you approve someone, copy the message from the box and send it yourself.
 - After you change files, bump `theset-shell-v1` in `sw.js` (to v2, v3, and so on) so phones pick up the update.
+
+
+## Photos (v2)
+Members can add one photo per comment in topics with photos on (The Porch). Photos are shrunk on the phone, limited to 1 MB on the server, kept in the private `photos` bucket, and shown with signed links. The schema is in `supabase/migrations/002_photos.sql` and the tests are in `supabase/test/photos_test.sql`. See ADMIN.md for admin tasks.

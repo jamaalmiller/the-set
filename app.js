@@ -1,4 +1,4 @@
-import { api, DEMO, LINK_RE, friendly } from './data.js';
+import { api, DEMO, LINK_RE, friendly, shrinkPhoto, PHOTO_TYPES } from './data.js';
 import { COPY } from './copy.js';
 import { SHOW_PRESENCE } from './config.js';
 
@@ -190,8 +190,10 @@ function threadShell(t, o) {
     <div id="gate"></div>
     <form id="composer" class="card form" ${t.locked ? 'hidden' : ''}>
       <p id="replying" class="small" hidden></p>
-      <label>${esc(o.prompt)}<textarea name="body" required maxlength="1000" rows="3"></textarea></label>
-      <p class="small">No links or images for now. Give it 10 seconds between posts.</p>
+      <label>${esc(o.prompt)}<textarea name="body" maxlength="1000" rows="3"></textarea></label>
+      ${t.allow_photos ? `<div class="photopick"><label class="btn alt small">${esc(COPY.photos.add)}<input type="file" name="photo" accept="${PHOTO_TYPES.join(',')}" hidden></label>
+        <div id="photoprev" hidden><img alt="${esc(COPY.photos.previewAlt)}"><button type="button" class="linkbtn" id="photoclear">${esc(COPY.photos.removePick)}</button></div></div>` : ''}
+      <p class="small">${esc(t.allow_photos ? COPY.photos.rule : COPY.photos.noPhotosRule)}</p>
       <button class="btn">${esc(o.button)}</button></form>
     <div id="thread" class="list" aria-live="polite"></div>`;
 }
@@ -199,10 +201,16 @@ function commentHtml(c, replies) {
   const mine = c.user_id === S.profile?.id;
   return `<article class="comment ${c.hidden || c.removed ? 'muted' : ''}" id="c${c.id}">
     <p class="meta"><strong>${esc(c.author_name)}</strong> · ${when(c.created_at)}${c.hidden ? ' · <em>hidden (flagged)</em>' : ''}${c.removed ? ' · <em>removed</em>' : ''}</p>
-    <p class="body">${esc(c.body)}</p>
+    ${c.body ? `<p class="body">${esc(c.body)}</p>` : ''}
+    ${c.photo_path && !c.removed ? `<img class="photo" data-photo="${esc(c.photo_path)}" alt="${esc(COPY.photos.alt(c.author_name))}" loading="lazy" decoding="async" width="320" height="240">` : ''}
     <div class="actions"><button class="linkbtn" data-reply="${c.id}" data-name="${esc(c.author_name)}">Reply</button>
     ${mine ? '' : `<button class="linkbtn" data-flag="${c.id}">Flag</button>`}</div>
     ${replies.length ? `<div class="replies">${replies.map(r => commentHtml(r, [])).join('')}</div>` : ''}</article>`;
+}
+async function fillPhotos(root) {
+  const imgs = [...root.querySelectorAll('img[data-photo]')]; if (!imgs.length) return;
+  let urls = {}; try { urls = await api.photoUrls(imgs.map(i => i.dataset.photo)); } catch {}
+  imgs.forEach(i => { const u = urls[i.dataset.photo]; if (u) { if (i.src !== u) i.src = u; i.removeAttribute('width'); i.removeAttribute('height'); } else i.replaceWith(Object.assign(document.createElement('p'), { className: 'small', textContent: COPY.photos.unavailable })); });
 }
 async function mountThread(t, o) {
   let replyTo = null;
@@ -214,6 +222,7 @@ async function mountThread(t, o) {
     const kids = id => all.filter(c => c.parent_id && c.id !== id && root(c) === id);
     const ordered = o.newestFirst ? tops.slice().reverse() : tops;
     box.innerHTML = tops.length ? ordered.map(c => commentHtml(c, kids(c.id))).join('') : `<div class="card empty"><p>${esc(o.empty)}</p></div>`;
+    await fillPhotos(box);
   };
   const gate = () => {
     const ok = S.profile?.guidelines_accepted_at;
@@ -225,11 +234,24 @@ async function mountThread(t, o) {
   gate(); await load();
   const unsub = api.subscribe(t.id, () => load().catch(() => {}));
   S.cleanup.push(unsub);
+  let photo = null, busy = false;
+  const fileIn = $('#composer input[name=photo]'), prev = $('#photoprev');
+  const clearPhoto = () => { photo = null; if (fileIn) fileIn.value = ''; if (prev) { prev.hidden = true; URL.revokeObjectURL(prev.querySelector('img').src); } };
+  fileIn?.addEventListener('change', async () => {
+    const f = fileIn.files[0]; if (!f) return;
+    try { photo = await shrinkPhoto(f); prev.querySelector('img').src = URL.createObjectURL(photo); prev.hidden = false; }
+    catch (x) { clearPhoto(); toast(friendly(x)); }
+  });
+  $('#photoclear')?.addEventListener('click', clearPhoto);
   $('#composer').onsubmit = async e => {
-    e.preventDefault(); const ta = e.target.body; const body = ta.value.trim(); if (!body) return;
+    e.preventDefault(); if (busy) return; const ta = e.target.body; const body = ta.value.trim();
+    if (!body && !photo) return toast(friendly('EMPTY'));
     if (LINK_RE.test(body)) return toast(friendly('NO_LINKS'));
-    try { await api.post(t.id, replyTo, body); ta.value = ''; replyTo = null; $('#replying').hidden = true; await load(); }
+    const btn = e.target.querySelector('button.btn:not([type=button])'); busy = true; btn.disabled = true;
+    if (photo) toast(COPY.photos.sending);
+    try { await api.post(t.id, replyTo, body, photo); ta.value = ''; clearPhoto(); replyTo = null; $('#replying').hidden = true; await load(); }
     catch (x) { toast(friendly(x)); }
+    finally { busy = false; btn.disabled = false; }
   };
   box.addEventListener('click', async e => {
     const r = e.target.closest('[data-reply]');
@@ -272,13 +294,28 @@ V.square.after = async (id) => {
 };
 
 // ---------- Admin (John only; the database enforces this too) ----------
-const ADMIN_TABS = [['requests', 'Join requests'], ['codes', 'Invite codes'], ['listings', 'Listings'], ['topics', 'Town Square topics'],
+const ADMIN_TABS = [['requests', 'Join requests'], ['codes', 'Invite codes'], ['listings', 'Listings'], ['topics', 'Topics and photos'],
   ['flags', 'Flags'], ['members', 'Members'], ['help', 'Help requests'], ['suggestions', 'Suggestions']];
-V.admin = (tab = 'requests') => `<h1>Admin</h1><nav class="tabs">${ADMIN_TABS.map(([k, l]) => `<a href="#/admin/${k}" aria-current="${k === tab ? 'page' : 'false'}">${l}</a>`).join('')}</nav><div id="adm"><p>Loading…</p></div>`;
+V.admin = (tab = 'requests') => `<h1>Admin</h1><div id="status" class="card status"><p class="small">Loading site status…</p></div><nav class="tabs">${ADMIN_TABS.map(([k, l]) => `<a href="#/admin/${k}" aria-current="${k === tab ? 'page' : 'false'}">${l}</a>`).join('')}</nav><div id="adm"><p>Loading…</p></div>`;
 V.admin.after = async (tab = 'requests') => {
   const A = api.admin, box = $('#adm');
   const copyBox = (subject, body) => `<div class="card copybox"><p class="small">Copy this and send it yourself from your email. The app sends nothing.</p>
     <textarea rows="5" readonly>Subject: ${esc(subject)}\n\n${esc(body)}</textarea><button class="btn small" data-copy>Copy message</button></div>`;
+  const mb = n => (n / 1048576).toFixed(n < 10485760 ? 1 : 0);
+  const status = async () => {
+    const el = $('#status'); if (!el) return;
+    try {
+      const s = await A.stats();
+      el.innerHTML = `<h2>${esc(COPY.admin.statusTitle)}</h2><ul class="stats">
+        <li><b>${s.members}</b> members${s.muted ? ` (${s.muted} paused)` : ''}</li><li><b>${s.join_pending}</b> join requests waiting</li>
+        <li><b>${s.comments}</b> comments</li><li><b>${s.photos}</b> photos · ${mb(s.photo_bytes)} MB of 1,024 MB free space</li>
+        <li><b>${s.flags_open}</b> flagged${s.hidden ? ` (${s.hidden} hidden)` : ''} awaiting review</li><li><b>${s.help_open}</b> help requests open</li></ul>
+        ${s.unused_photos ? `<p class="small">${esc(COPY.admin.unused(s.unused_photos))} <button class="btn alt small" data-cleanup>${esc(COPY.admin.cleanup)}</button></p>` : ''}`;
+    } catch (x) { el.innerHTML = `<p class="small">${esc(friendly(x))}</p>`; }
+  };
+  status();
+  $('#status').addEventListener('click', async e => { if (!e.target.closest('[data-cleanup]')) return;
+    try { const n = await A.cleanupPhotos(); toast(COPY.admin.cleaned(n)); status(); } catch (x) { toast(friendly(x)); } });
   const R = {
     async requests() {
       const rows = await A.joinRequests();
@@ -343,29 +380,38 @@ V.admin.after = async (tab = 'requests') => {
       };
     },
     async topics() {
-      const rows = await api.topics('square');
+      const rows = await A.allTopics();
       box.innerHTML = `<form id="nt" class="card form"><h2>Start a Town Square topic</h2><label>Title<input name="title" required maxlength="140"></label>
         <label>Details (optional)<textarea name="body" maxlength="1000" rows="2"></textarea></label><button class="btn">Create topic</button></form>
-        ${rows.map(t => `<div class="card"><h2><a href="#/square/${t.id}">${esc(t.title)}</a></h2><button class="btn alt small" data-lock="${t.id}" data-l="${t.locked ? 0 : 1}">${t.locked ? 'Reopen' : 'Lock'}</button></div>`).join('')}`;
+        <p class="small">${esc(COPY.admin.photosHelp)}</p>
+        ${rows.map(t => `<div class="card"><h2><a href="#/${t.kind === 'porch' ? 'porch' : 'square/' + t.id}">${esc(t.title)}</a> <span class="tag">${t.allow_photos ? 'Photos on' : 'Text only'}</span>${t.locked ? ' <span class="tag warn">Locked</span>' : ''}</h2>
+          <div class="row"><button class="btn alt small" data-lock="${t.id}" data-l="${t.locked ? 0 : 1}">${t.locked ? 'Reopen' : 'Lock'}</button>
+          <button class="btn ${t.allow_photos ? 'alt ' : ''}small" data-photos="${t.id}" data-on="${t.allow_photos ? 0 : 1}">${t.allow_photos ? 'Turn photos off' : 'Turn photos on'}</button></div></div>`).join('')}`;
       $('#nt').onsubmit = async e => { e.preventDefault(); const d = formData(e.target); await A.createTopic(d.title.trim(), d.body.trim() || null); R.topics(); };
-      box.onclick = async e => { const l = e.target.closest('[data-lock]'); if (l) { await A.lockTopic(+l.dataset.lock, l.dataset.l === '1'); R.topics(); } };
+      box.onclick = async e => { const l = e.target.closest('[data-lock]'), ph = e.target.closest('[data-photos]');
+        try {
+          if (l) { await A.lockTopic(+l.dataset.lock, l.dataset.l === '1'); R.topics(); }
+          if (ph) { await A.topicPhotos(+ph.dataset.photos, ph.dataset.on === '1'); toast(ph.dataset.on === '1' ? 'Photos are on.' : 'Photos are off.'); R.topics(); }
+        } catch (x) { toast(friendly(x)); } };
     },
     async flags() {
       const [reps, hidden] = await Promise.all([A.reports(), A.hiddenComments()]);
       const seen = new Map(); reps.forEach(r => r.comments && seen.set(r.comment_id, { ...r.comments, n: (seen.get(r.comment_id)?.n || 0) + 1 }));
       hidden.forEach(c => !seen.has(c.id) && seen.set(c.id, { ...c, n: 0 }));
       box.innerHTML = seen.size ? [...seen.values()].map(c => `<div class="card"><p class="meta"><strong>${esc(c.author_name)}</strong> · ${c.n} flag(s) ${c.hidden ? '· hidden' : ''}</p>
-        <p>${esc(c.body)}</p><div class="row"><button class="btn small" data-restore="${c.id}">Restore (keep it)</button>
+        ${c.body ? `<p>${esc(c.body)}</p>` : ''}${c.photo_path ? `<img class="photo" data-photo="${esc(c.photo_path)}" alt="Flagged photo" loading="lazy">` : ''}
+        <div class="row"><button class="btn small" data-restore="${c.id}">Restore (keep it)</button>
         <button class="btn alt small" data-hide="${c.id}">Hide</button><button class="btn alt small" data-remove="${c.id}">Remove</button>
         <button class="btn alt small" data-mute="${esc(c.user_id)}">Mute author</button></div></div>`).join('') : '<p>No flags right now.</p>';
+      await fillPhotos(box);
       box.onclick = async e => {
         const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
         try {
           if (d.restore) await A.setComment(+d.restore, { hidden: false });
           if (d.hide) await A.setComment(+d.hide, { hidden: true });
-          if (d.remove && confirm('Remove this comment?')) await A.setComment(+d.remove, { removed: true });
+          if (d.remove && confirm('Remove this comment? Any photo is deleted for good.')) await A.removeComment(+d.remove, seen.get(+d.remove)?.photo_path);
           if (d.mute) await A.setMember(d.mute, 'muted');
-          toast('Done.'); R.flags();
+          toast('Done.'); R.flags(); status();
         } catch (x) { toast(friendly(x)); }
       };
     },

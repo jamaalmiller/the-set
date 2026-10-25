@@ -14,12 +14,20 @@ const FRIENDLY = {
   NOT_MEMBER: 'You need to be a member to do that.',
   ALREADY_MEMBER: "You're already a member.",
   BAD_NAME: 'Please enter a display name (up to 40 characters).',
+  NO_PHOTOS: 'Photos are turned off in this conversation right now.',
+  BAD_PHOTO: "That photo didn't upload right. Please try again.",
+  PHOTO_LIMIT: "That's a lot of photos for one hour. Give it a little while and try again.",
+  PHOTO_TYPE: 'Please pick a photo (JPG, PNG, or WebP).',
+  PHOTO_BIG: 'That photo is too big, even after shrinking. Please try a different one.',
+  EMPTY: 'Write something or add a photo first.',
 };
 export function friendly(err) {
   const m = String(err?.message || err || '');
   for (const k of Object.keys(FRIENDLY)) if (m.includes(k)) return FRIENDLY[k];
   if (/duplicate key|unique/i.test(m)) return 'You already did that.';
   if (/Invalid login/i.test(m)) return 'That email or password did not match.';
+  if (/too large|exceeded the maximum|payload/i.test(m)) return FRIENDLY.PHOTO_BIG;
+  if (/mime type|invalid_mime/i.test(m)) return FRIENDLY.PHOTO_TYPE;
   return 'Something went wrong. Please try again.';
 }
 function chk({ error, data }) { if (error) throw error; return data; }
@@ -31,11 +39,31 @@ export function makeCode() {
   return `SET-${s.slice(0, 4)}-${s.slice(4)}`;
 }
 
+// Shrink a phone photo before upload: max 1280px long side, JPEG ~0.8 (this also drops location/EXIF data).
+export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+export const PHOTO_MAX = 1024 * 1024;
+export async function shrinkPhoto(file) {
+  if (!file || !PHOTO_TYPES.includes(file.type)) throw new Error('PHOTO_TYPE');
+  let img;
+  try { img = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch { img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('PHOTO_TYPE')); i.src = URL.createObjectURL(file); }); }
+  const w0 = img.width, h0 = img.height, k = Math.min(1, 1280 / Math.max(w0, h0));
+  const c = document.createElement('canvas'); c.width = Math.round(w0 * k); c.height = Math.round(h0 * k);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+  img.close?.();
+  for (const q of [0.8, 0.65, 0.5]) {
+    const b = await new Promise(ok => c.toBlob(ok, 'image/jpeg', q));
+    if (b && b.size <= PHOTO_MAX) return b;
+  }
+  throw new Error('PHOTO_BIG');
+}
+
 // ------------------------- Supabase backend -------------------------
 async function supabaseBackend() {
   const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.45.4');
   const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   let profile = null;
+  const urlCache = new Map();
   const loadProfile = async () => {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) { profile = null; return { user: null, profile: null }; }
@@ -72,7 +100,24 @@ async function supabaseBackend() {
     async comments(topicId) {
       return chk(await sb.from('comments').select('*').eq('topic_id', topicId).order('created_at').limit(500));
     },
-    async post(topic_id, parent_id, body) { chk(await sb.from('comments').insert({ topic_id, parent_id, body })); },
+    async post(topic_id, parent_id, body, photo) {
+      let photo_path = null;
+      if (photo) {
+        photo_path = `${profile.id}/${crypto.randomUUID()}.jpg`;
+        chk(await sb.storage.from('photos').upload(photo_path, photo, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' }));
+      }
+      const { error } = await sb.from('comments').insert({ topic_id, parent_id, body, photo_path });
+      if (error) { if (photo_path) await sb.storage.from('photos').remove([photo_path]); throw error; }
+    },
+    // Short-lived private links to photos (members only), reused for about 50 minutes to save data.
+    async photoUrls(paths) {
+      const now = Date.now(), need = [...new Set(paths)].filter(p => !(urlCache.get(p)?.exp > now));
+      if (need.length) {
+        const { data } = await sb.storage.from('photos').createSignedUrls(need, 3600);
+        (data || []).forEach(d => d.signedUrl && urlCache.set(d.path, { url: d.signedUrl, exp: now + 50 * 60e3 }));
+      }
+      return Object.fromEntries(paths.map(p => [p, urlCache.get(p)?.url]).filter(([, u]) => u));
+    },
     async flag(comment_id) { chk(await sb.from('reports').insert({ comment_id })); },
     // Live updates; falls back to polling every 5s if the live channel errors.
     subscribe(topicId, onChange) {
@@ -104,7 +149,7 @@ async function supabaseBackend() {
       async suggestions() { return chk(await sb.from('listing_suggestions').select('*').order('created_at', { ascending: false })); },
       async suggestionHandled(id) { chk(await sb.from('listing_suggestions').update({ handled: true }).eq('id', id)); },
       async reports() {
-        return chk(await sb.from('reports').select('*, comments(id, body, author_name, hidden, removed, topic_id, user_id)').eq('reviewed', false).order('created_at', { ascending: false }));
+        return chk(await sb.from('reports').select('*, comments(id, body, author_name, hidden, removed, topic_id, user_id, photo_path)').eq('reviewed', false).order('created_at', { ascending: false }));
       },
       async hiddenComments() { return chk(await sb.from('comments').select('*').eq('hidden', true).eq('removed', false)); },
       async setComment(id, fields) {
@@ -115,13 +160,27 @@ async function supabaseBackend() {
       async setMember(id, status) { chk(await sb.from('profiles').update({ status }).eq('id', id)); },
       async createTopic(title, body) { chk(await sb.from('topics').insert({ kind: 'square', title, body, created_by: profile.id })); },
       async lockTopic(id, locked) { chk(await sb.from('topics').update({ locked }).eq('id', id)); },
+      async topicPhotos(id, allow_photos) { chk(await sb.from('topics').update({ allow_photos }).eq('id', id)); },
+      async allTopics() { return chk(await sb.from('topics').select('*').order('kind').order('created_at', { ascending: false })); },
+      async stats() { return chk(await sb.rpc('admin_stats')); },
+      // Remove a comment and delete its photo file for good.
+      async removeComment(id, photo_path) {
+        if (photo_path) chk(await sb.storage.from('photos').remove([photo_path]));
+        await this.setComment(id, { removed: true });
+      },
+      async cleanupPhotos() {
+        const names = chk(await sb.rpc('admin_unused_photos')) || [];
+        const list = names.map(n => (typeof n === 'string' ? n : n.admin_unused_photos));
+        for (let i = 0; i < list.length; i += 100) chk(await sb.storage.from('photos').remove(list.slice(i, i + 100)));
+        return list.length;
+      },
     },
   };
 }
 
 // ------------------------- DEMO backend (no accounts) -------------------------
 function demoBackend() {
-  const KEY = 'theset-demo-v1';
+  const KEY = 'theset-demo-v2';
   const now = () => new Date().toISOString();
   const seed = () => ({
     seq: 100, me: null,
@@ -137,7 +196,7 @@ function demoBackend() {
       { id: 7, category: 'peace', name: 'Sample Liaison Group', kind: 'Mediation', city: 'Sample City', contact: '', contact_via_set: true, verified: true, published: true },
     ],
     suggestions: [], help: [],
-    topics: [{ id: 8, kind: 'porch', title: 'The Porch', locked: false, created_at: now() },
+    topics: [{ id: 8, kind: 'porch', title: 'The Porch', locked: false, allow_photos: true, created_at: now() },
              { id: 9, kind: 'square', title: 'Sample topic: What should The Set talk about first?', body: 'Sample topic for the demo.', locked: false, created_at: now() }],
     comments: [{ id: 10, topic_id: 9, parent_id: null, user_id: 'demo-bot', author_name: 'Sample Member', body: 'Sample comment. This is demo text.', hidden: false, removed: false, created_at: now() }],
     reports: [],
@@ -149,6 +208,7 @@ function demoBackend() {
   const isAdmin = () => me()?.role === 'admin';
   const need = (c, e) => { if (!c) throw new Error(e); };
   const subs = new Set();
+  const demoPhotos = new Map(); // DEMO: photos live only in this tab's memory
   const bc = 'BroadcastChannel' in self ? new BroadcastChannel('theset-demo') : null;
   const notify = () => { save(); subs.forEach(f => f()); bc?.postMessage('x'); };
   bc && (bc.onmessage = () => { try { db = JSON.parse(localStorage.getItem(KEY)) || db; } catch {} subs.forEach(f => f()); });
@@ -196,13 +256,17 @@ function demoBackend() {
     async topics(kind) { need(me(), 'NOT_MEMBER'); return db.topics.filter(t => t.kind === kind).slice().reverse(); },
     async topic(tid) { need(me(), 'NOT_MEMBER'); return db.topics.find(t => t.id === tid) || null; },
     async comments(tid) { return db.comments.filter(c => c.topic_id === tid && (isAdmin() || (!c.hidden && !c.removed))); },
-    async post(topic_id, parent_id, body) {
+    async post(topic_id, parent_id, body, photo) {
       const p = me(); need(p, 'NOT_MEMBER'); need(p.status !== 'muted', 'MUTED'); need(p.guidelines_accepted_at, 'GUIDELINES');
       const t = db.topics.find(t => t.id === topic_id); need(t && !t.locked, 'LOCKED');
       need(!LINK_RE.test(body), 'NO_LINKS');
+      need(body.trim() || photo, 'EMPTY');
+      need(!photo || t.allow_photos, 'NO_PHOTOS');
       const last = db.comments.filter(c => c.user_id === p.id).at(-1);
       need(p.role === 'admin' || !last || Date.now() - new Date(last.created_at) > 10000, 'SLOW_MODE');
-      db.comments.push({ id: id(), topic_id, parent_id, user_id: p.id, author_name: p.display_name, body: body.trim(), hidden: false, removed: false, created_at: now() });
+      let photo_path = null;
+      if (photo) { photo_path = `demo/${crypto.randomUUID()}.jpg`; demoPhotos.set(photo_path, URL.createObjectURL(photo)); }
+      db.comments.push({ id: id(), topic_id, parent_id, user_id: p.id, author_name: p.display_name, body: body.trim(), photo_path, hidden: false, removed: false, created_at: now() });
       notify();
     },
     async flag(comment_id) {
@@ -216,6 +280,7 @@ function demoBackend() {
       if (n >= 2) db.comments.find(c => c.id === comment_id).hidden = true;
       notify();
     },
+    async photoUrls(paths) { return Object.fromEntries(paths.map(p => [p, demoPhotos.get(p)]).filter(([, u]) => u)); },
     subscribe(_tid, fn) { subs.add(fn); return () => subs.delete(fn); },
     presence(onCount) { onCount(3); return () => {}; },
     admin: {
@@ -235,6 +300,17 @@ function demoBackend() {
       async setMember(mid, status) { db.profiles.find(p => p.id === mid).status = status; save(); },
       async createTopic(title, body) { db.topics.push({ id: id(), kind: 'square', title, body, locked: false, created_at: now() }); save(); },
       async lockTopic(tid, locked) { db.topics.find(t => t.id === tid).locked = locked; save(); },
+      async topicPhotos(tid, on) { db.topics.find(t => t.id === tid).allow_photos = on; save(); },
+      async allTopics() { return db.topics.slice().sort((a, b) => (a.kind < b.kind ? -1 : 1)); },
+      async stats() {
+        const ph = db.comments.filter(c => c.photo_path && !c.removed);
+        return { members: db.profiles.filter(p => p.status !== 'removed').length, muted: db.profiles.filter(p => p.status === 'muted').length,
+          join_pending: db.joins.filter(j => j.status === 'pending').length, comments: db.comments.filter(c => !c.removed).length,
+          photos: ph.length, photo_bytes: 0, flags_open: new Set(db.reports.filter(r => !r.reviewed).map(r => r.comment_id)).size,
+          hidden: db.comments.filter(c => c.hidden && !c.removed).length, help_open: db.help.filter(h => !h.handled).length, unused_photos: 0 };
+      },
+      async removeComment(cid, path) { if (path) demoPhotos.delete(path); await this.setComment(cid, { removed: true }); },
+      async cleanupPhotos() { return 0; },
     },
   };
   return api;

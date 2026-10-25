@@ -49,3 +49,7 @@ input[type=checkbox] { width:24px; height:24px; min-height:0; margin:0; }
 .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:96px; background:var(--ink); color:#fff; padding:12px 18px; border-radius:12px; z-index:7; max-width:90vw; }
 .foot { text-align:center; padding:20px 16px; color:var(--muted); }
 @media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important; } }
+.comment img.photo, .card img.photo { display:block; max-width:min(100%,320px); max-height:320px; height:auto; border-radius:10px; margin:.4em 0; background:#efe4d6; object-fit:cover; }
+#photoprev img { display:block; max-width:160px; max-height:160px; border-radius:10px; margin-top:8px; }
+.photopick { margin:8px 0; } .photopick label.btn { display:inline-flex; font-weight:700; margin:0; }
+.status .stats { list-style:none; padding:0; margin:.4em 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:4px 12px; }
