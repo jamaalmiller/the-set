@@ -367,7 +367,7 @@ V.square.after = async (id) => {
   const t = await api.topic(+id);
   if (!t || t.kind !== 'square') { $('#topicbox').innerHTML = '<p>That topic was not found.</p>'; return; }
   $('#topicbox').innerHTML = (t.grp === 'special_needs' ? `<p><a href="#/corner">${esc(COPY.corner.back)}</a></p>` : '') +
-    `<div class="card"><h2>${esc(t.title)}</h2>${t.body ? `<p>${esc(t.body)}</p>` : ''}</div>` +
+    `<div class="card"><h2>${esc(t.title)}</h2>${t.body ? `<p class="tbody">${esc(t.body)}</p>` : ''}</div>` +
     (t.grp === 'special_needs' ? safetyBox() : '') +
     threadShell(t, { prompt: COPY.square.prompt, button: COPY.square.button });
   await mountThread(t, { empty: COPY.square.empty });
@@ -375,10 +375,11 @@ V.square.after = async (id) => {
 
 // ---------- The Circle (inside The Classroom; rooms are text-only Town Square topics with grp = 'special_needs') ----------
 const safetyBox = () => { const s = COPY.corner.safety; return `<div class="note safety"><p><strong>${esc(s.lead)}</strong></p><ul>${s.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul><p class="small">${esc(s.foot)}</p></div>`; };
-const topicCard = t => `<a class="card block" href="#/square/${t.id}"><h2>${esc(t.title)}</h2>${t.body ? `<p>${esc(t.body)}</p>` : ''}${t.locked ? '<p class="tag">Closed</p>' : ''}</a>`;
+const topicCard = t => `<a class="card block" href="#/square/${t.id}"><h2>${esc(t.title)}</h2>${t.body ? `<p>${esc(t.body.split('\n')[0])}</p>` : ''}${t.locked ? '<p class="tag">Closed</p>' : ''}</a>`;
 const cornerRooms = ts => ts.filter(t => t.grp === 'special_needs').sort((a, b) => a.id - b.id);
 V.corner = () => { const c = COPY.corner; return `<div class="theme theme-corner"><p><a href="#/classroom">← The Classroom</a></p>${secHead('corner', c.title)}<p class="sub">${esc(c.subtitle)}</p><p class="lead">${esc(c.intro)}</p><div class="card start"><h2>${esc(c.startTitle)}</h2>${c.startIntro.map(p => `<p>${esc(p)}</p>`).join('')}<ul>${c.start.map(s => `<li>${esc(s)}</li>`).join('')}</ul>${c.startOutro.map(p => `<p>${esc(p)}</p>`).join('')}<p class="small">${esc(c.contact)}</p></div>
   <p>${esc(c.framework)}</p>
+  <div class="card"><h2>${esc(c.importantTitle)}</h2><p>${esc(c.important)}</p><h2>${esc(c.nonspeakingTitle)}</h2><p>${esc(c.nonspeaking)}</p></div>
   ${safetyBox()}
   
   <h2>${esc(c.roomsTitle)}</h2><div id="rooms" class="list"><p>Loading…</p></div>

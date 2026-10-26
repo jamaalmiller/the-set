@@ -27,7 +27,7 @@ from (values
   ('Level 4: Full-Circle Support', 'For families whose children need extensive, coordinated help with behavior, communication, or daily living, often with specialized supervision and a team of professionals and caregivers. A place to lean on each other, because this takes a lot.'),
   ('Parents Connecting', 'You''re not in this alone. Meet parents in similar situations, trade what''s worked, and find your people.')
 ) as v(title, body)
-where not exists (select 1 from topics t where t.grp = 'special_needs' and t.title = v.title);
+where not exists (select 1 from topics t where t.grp = 'special_needs' and (t.title = v.title or (v.title like 'Level _:%' and left(t.title, 8) = left(v.title, 8))));
 update topics t set body = v.body from (values
   ('Level 1: Everyday Support', 'For families building the basics at home and at school. Visual schedules, positive reinforcement, simple strategies, and classroom accommodations that help our kids take part and do more on their own.'),
   ('Level 2: A Little Extra Help', 'For families working on something specific, like following directions, telling us what they need, or moving from one activity to the next. Share what''s helping and what''s hard.'),
