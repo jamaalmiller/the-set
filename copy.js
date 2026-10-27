@@ -137,6 +137,7 @@ export const COPY = {
   deleteConfirm: "Delete this? This can't be undone.",
   deleted: 'Deleted.',
   removedByAuthor: 'The post this replied to was removed.',
+  replies: { title: 'Replies to you', replied: 'replied to you in', newTag: 'New', empty: 'No replies yet. When someone answers your post, it shows up here.' },
   happening: {
     title: "What's happening",
     sub: "What's happening with your people and our community.",

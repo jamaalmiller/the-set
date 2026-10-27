@@ -80,3 +80,4 @@ a.card.block.corner { border-left-color:var(--ok); background:#f2f8f3; } .note.s
 .hap-item p { margin:4px 0; } .hap-item .tag { font-size:.8em; }
 .tbody { white-space:pre-line; }
 .linkbtn.like { text-decoration:none; } .linkbtn.like.on { font-weight:700; }
+.countbadge { display:inline-block; min-width:1.3em; padding:0 .35em; border-radius:999px; background:#c0392b; color:#fff; font-size:.75em; font-weight:700; text-align:center; line-height:1.3em; }

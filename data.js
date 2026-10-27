@@ -142,6 +142,8 @@ async function supabaseBackend() {
     async flag(comment_id) { chk(await sb.from('reports').insert({ comment_id })); },
     async likeCounts(topicId) { return chk(await sb.rpc('like_counts', { p_topic: topicId })) || []; },
     async like(id, on) { chk(on ? await sb.from('likes').insert({ comment_id: id }) : await sb.from('likes').delete().eq('comment_id', id).eq('member_id', profile.id)); },
+    async myReplies() { return chk(await sb.rpc('my_replies')) || []; },
+    async markRepliesSeen() { chk(await sb.rpc('mark_replies_seen')); },
     async deleteMine(id) { chk(await sb.rpc('delete_my_comment', { p_id: id })); },
     // Live updates; falls back to polling every 5s if the live channel errors.
     subscribe(topicId, onChange) {
@@ -312,6 +314,10 @@ function demoBackend() {
     async comments(tid) { return db.comments.filter(c => c.topic_id === tid && (isAdmin() || (!c.hidden && !c.removed && !c.deleted_at))); },
     async likeCounts(tid) { const m = new Map(); (db.likes ||= []).forEach(l => { const c = db.comments.find(c => c.id === l.comment_id); if (c?.topic_id === tid) { const r = m.get(l.comment_id) || { comment_id: l.comment_id, n: 0, mine: false }; r.n++; r.mine ||= l.member_id === db.me; m.set(l.comment_id, r); } }); return [...m.values()]; },
     async like(cid, on) { need(me(), 'NOT_MEMBER'); db.likes ||= []; db.likes = db.likes.filter(l => !(l.comment_id === cid && l.member_id === db.me)); if (on) db.likes.push({ comment_id: cid, member_id: db.me }); notify(); },
+    async myReplies() { const p = me(); if (!p) return []; const mine = new Set(db.comments.filter(c => c.user_id === p.id).map(c => c.id));
+      return db.comments.filter(c => mine.has(c.parent_id) && c.user_id !== p.id && !c.hidden && !c.removed && !c.deleted_at && !db.topics.find(t => t.id === c.topic_id)?.grp)
+        .map(c => { const t = db.topics.find(t => t.id === c.topic_id); return { id: c.id, topic_id: c.topic_id, kind: t.kind, topic: t.title, author_name: c.author_name, created_at: c.created_at, is_new: c.created_at > (p.replies_seen_at || '') }; }).reverse().slice(0, 20); },
+    async markRepliesSeen() { const p = me(); if (p) { p.replies_seen_at = now(); notify(); } },
     async deleteMine(cid) { const c = db.comments.find(c => c.id === cid); need(c && c.user_id === db.me && !c.deleted_at, 'NOT_YOURS'); c.deleted_at = now(); notify(); },
     async post(topic_id, parent_id, body, photo) {
       const p = me(); need(p, 'NOT_MEMBER'); need(p.status !== 'muted', 'MUTED'); need(p.guidelines_accepted_at, 'GUIDELINES');

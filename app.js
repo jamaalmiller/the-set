@@ -17,7 +17,10 @@ const SECTIONS = {
 };
 const MEMBER_ONLY = ['corner', 'clinic', 'counsel', 'classroom', 'block', 'peace', 'porch', 'square', 'welcome'];
 
-const S = { user: null, profile: null, cleanup: [] };
+const S = { user: null, profile: null, cleanup: [], newReplies: 0 };
+const badge = () => S.newReplies ? ` <span class="countbadge" aria-label="${S.newReplies} new replies">${S.newReplies > 9 ? '9+' : S.newReplies}</span>` : '';
+async function refreshReplies() { if (!S.profile) { S.newReplies = 0; return []; }
+  try { const r = await api.myReplies(); S.newReplies = r.filter(x => x.is_new).length; return r; } catch { return []; } }
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const when = t => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -32,14 +35,14 @@ const formData = f => Object.fromEntries(new FormData(f).entries());
 function navLink(key) {
   if (key === 'signout') return S.user ? `<button class="navlink" data-signout>Sign out</button>` : '';
   const s = SECTIONS[key];
-  return `<a class="navlink" href="#/${key}">${s.icon ? `<span aria-hidden="true">${s.icon}</span> ` : ''}${esc(s.label)}</a>`;
+  return `<a class="navlink" href="#/${key}">${s.icon ? `<span aria-hidden="true">${s.icon}</span> ` : ''}${esc(s.label)}${key === 'home' ? badge() : ''}</a>`;
 }
 function renderNav() {
   const all = ['home', 'clinic', 'counsel', 'classroom', 'block', 'peace', 'porch', 'square', 'about'];
   $('#topnav').innerHTML = all.map(navLink).join('') + (isAdmin() ? navLink('admin') : '') +
     (S.user ? `<button class="navlink" data-signout>Sign out</button>` : `<a class="navlink" href="#/signin">Sign in</a>`);
   $('#bottombar').innerHTML = NAV.bar.map(k => `<a href="#/${k}" data-key="${k}"><span aria-hidden="true">${SECTIONS[k].icon}</span>${esc(SECTIONS[k].short)}</a>`).join('') +
-    `<a href="#/more" data-key="more"><span aria-hidden="true">☰</span>More</a>`;
+    `<a href="#/more" data-key="more"><span aria-hidden="true">☰</span>More${badge()}</a>`;
   const cur = location.hash.split('/')[1] || 'home';
   document.querySelectorAll('#bottombar a, #topnav a').forEach(a => a.setAttribute('aria-current', a.getAttribute('href') === `#/${cur}` ? 'page' : 'false'));
 }
@@ -52,7 +55,8 @@ V.home = () => `
   ${S.profile ? `<a class="btn" href="#/porch">Go to The Porch</a>` : `<div class="row"><a class="btn" href="#/code">Pull up</a><a class="btn alt" href="#/request">Request an invite</a></div>
   <p class="small">Pull up = I have an invite code. Already a member? <a href="#/signin">Sign in</a></p>`}</section>
   ${S.profile ? `<section class="happening card" aria-labelledby="hap-h"><h2 id="hap-h">${esc(COPY.happening.title)}</h2><p class="small">${esc(COPY.happening.sub)}</p>
-    <div id="happening"><p class="small">Loading…</p></div><div id="community"></div></section>` : ''}
+    <div id="happening"><p class="small">Loading…</p></div><div id="community"></div></section>
+    <section class="card" aria-labelledby="rep-h"><h2 id="rep-h">${esc(COPY.replies.title)}</h2><div id="replies"><p class="small">Loading…</p></div></section>` : ''}
   <div class="grid">${COPY.homeBlocks.map(([k, t, d]) => `<a class="card block theme-${k}" href="#/${k}"><h2 class="blockhead">${ICON[k] ? svgIcon(k) : ''}${esc(t)}</h2><p>${esc(d)}</p></a>`).join('')}</div>`;
 const ago = t => { const m = Math.max(0, Math.round((Date.now() - new Date(t)) / 60000));
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} hr ago` : m < 10080 ? `${Math.round(m / 1440)} d ago` : when(t); };
@@ -60,7 +64,11 @@ const excerpt = (t, n = 120) => { const x = String(t || '').replace(/\s+/g, ' ')
 const safeHttps = u => (/^https:\/\/[^\s<>"]+$/.test(u || '') ? u : '');
 V.home.after = async () => {
   if (!S.profile) return;
-  const H = COPY.happening, C = COPY.community;
+  const H = COPY.happening, C = COPY.community, RP = COPY.replies;
+  refreshReplies().then(async rs => { const el = $('#replies'); if (!el) return;
+    el.innerHTML = rs.length ? rs.map(r => `<a class="hap-item" href="${r.kind === 'porch' ? '#/porch' : `#/square/${r.topic_id}`}">${r.is_new ? `<span class="tag">${esc(RP.newTag)}</span>` : ''}
+      <p><strong>${esc(r.author_name)}</strong> ${esc(RP.replied)} <strong>${esc(r.kind === 'porch' ? 'The Porch' : r.topic)}</strong></p><p class="meta">${esc(ago(r.created_at))}</p></a>`).join('') : `<p>${esc(RP.empty)}</p>`;
+    if (S.newReplies) { try { await api.markRepliesSeen(); S.newReplies = 0; renderNav(); } catch {} } });
   try {
     const { posts, listings } = await api.happening();
     const items = [...posts.map(p => `<a class="hap-item" href="${p.kind === 'porch' ? '#/porch' : `#/square/${p.topic_id}`}"><span class="tag">${esc(H.tag)}</span>
@@ -83,7 +91,7 @@ const guidelinesHtml = () => `<p class="lead">${esc(COPY.guidelinesTitle)}</p><u
 V.install = () => `<h1>Install help</h1><p>${esc(COPY.install)}</p>
   <div class="card"><h2>iPhone (Safari)</h2><ol><li>Tap the Share button (square with an arrow).</li><li>Tap "Add to Home Screen".</li><li>Tap "Add".</li></ol></div>
   <div class="card"><h2>Android (Chrome)</h2><ol><li>Tap the browser menu (three dots).</li><li>Tap "Install app" or "Add to Home screen".</li><li>Tap "Install".</li></ol></div>`;
-V.more = () => `<h1>More</h1><div class="list">${NAV.more.map(navLink).join('')}${isAdmin() ? navLink('admin') : ''}</div>`;
+V.more = () => `<h1>More</h1><div class="list">${S.profile ? `<a class="navlink" href="#/home">${esc(COPY.replies.title)}${badge()}</a>` : ''}${NAV.more.map(navLink).join('')}${isAdmin() ? navLink('admin') : ''}</div>`;
 
 V.code = () => {
   const signedInNoProfile = S.user && !S.profile;
@@ -665,6 +673,6 @@ if (DEMO) {
   $('#demoreset').onclick = () => api.reset();
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW', e));
-await refreshSession();
+await refreshSession(); await refreshReplies();
 addEventListener('hashchange', route);
 route();
