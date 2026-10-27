@@ -138,7 +138,7 @@ V.signin.after = () => $('#signin').onsubmit = async e => {
 };
 
 V.welcome = () => `<div class="card welcome"><h1>Welcome to The Set.</h1><p class="lead">${esc(COPY.welcome)}</p>
-  <div class="row"><a class="btn" href="#/porch">Say hello on the Porch</a><a class="btn alt" href="#/guidelines">Read the Guidelines</a></div></div>`;
+  <div class="row"><a class="btn" href="#/porch">Say hello on The Porch</a><a class="btn alt" href="#/guidelines">Read the Guidelines</a></div></div>`;
 
 // ---------- Section headers: one small line icon per section (header + home block only) ----------
 const ICON = {
