@@ -696,3 +696,75 @@ What helps: Protecting dignity and safety, using the child''s own way of communi
 Example: A child who communicates with pictures gets upset during a transition and starts hitting their head. The adults follow the child''s safety plan and get the right help.
 
 These levels are illustrative, not an official universal ABA classification. Support needs must be assessed individually. A general framework, not a label for your child.' where grp = 'special_needs' and title = 'Level 4: Very High or Intensive Support Needs';
+-- 008: members can delete their OWN posts/comments (soft delete). The row stays for moderation records;
+-- members stop seeing it. Admins still see it (marked deleted) in Flags and moderation views.
+alter table comments add column if not exists deleted_at timestamptz;
+
+drop policy if exists comments_read on comments;
+create policy comments_read on comments for select to authenticated
+  using ((is_member() and not hidden and not removed and deleted_at is null) or is_admin());
+
+create or replace function delete_my_comment(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_member() then raise exception 'NOT_MEMBER'; end if;
+  update comments set deleted_at = now() where id = p_id and user_id = auth.uid() and deleted_at is null;
+  if not found then raise exception 'NOT_YOURS'; end if;
+end $$;
+revoke all on function delete_my_comment(bigint) from public, anon;
+grant execute on function delete_my_comment(bigint) to authenticated;
+-- 009: Like button. One like per member per post/comment. Counts only: members never see who liked.
+create table if not exists likes (
+  comment_id bigint not null references comments(id) on delete cascade,
+  member_id uuid not null default auth.uid() references profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (comment_id, member_id)
+);
+create index if not exists likes_member_idx on likes (member_id);
+alter table likes enable row level security;
+drop policy if exists likes_read_own on likes;
+create policy likes_read_own on likes for select to authenticated using (member_id = (select auth.uid()) or is_admin());
+drop policy if exists likes_insert_own on likes;
+create policy likes_insert_own on likes for insert to authenticated
+  with check (member_id = (select auth.uid()) and is_member()
+    and exists (select 1 from comments c where c.id = comment_id and not c.hidden and not c.removed and c.deleted_at is null));
+drop policy if exists likes_delete_own on likes;
+create policy likes_delete_own on likes for delete to authenticated using (member_id = (select auth.uid()));
+
+-- Counts for one topic in one call; only for comments the member can see.
+create or replace function like_counts(p_topic bigint) returns table (comment_id bigint, n int, mine boolean)
+language sql stable security definer set search_path = public as $$
+  select l.comment_id, count(*)::int, bool_or(l.member_id = auth.uid())
+  from likes l join comments c on c.id = l.comment_id
+  where c.topic_id = p_topic and is_member()
+    and ((not c.hidden and not c.removed and c.deleted_at is null) or is_admin())
+  group by l.comment_id;
+$$;
+revoke all on function like_counts(bigint) from public, anon;
+grant execute on function like_counts(bigint) to authenticated;
+-- 010: in-app "Replies to you". A reply = someone else's comment whose parent is your comment.
+-- Never includes The Circle (grp = 'special_needs'), hidden, removed or deleted comments, or your own.
+-- Returns topic title and replier name only (no comment text).
+alter table profiles add column if not exists replies_seen_at timestamptz not null default now();
+
+create or replace function my_replies() returns table (id bigint, topic_id bigint, kind text, topic text, author_name text, created_at timestamptz, is_new boolean)
+language sql stable security definer set search_path = public as $$
+  select r.id, r.topic_id, t.kind, t.title, r.author_name, r.created_at,
+         r.created_at > coalesce((select replies_seen_at from profiles where id = auth.uid()), now())
+  from comments r
+  join comments p on p.id = r.parent_id
+  join topics t on t.id = r.topic_id
+  where is_member() and p.user_id = auth.uid() and r.user_id <> auth.uid()
+    and t.grp is null
+    and not r.hidden and not r.removed and r.deleted_at is null and p.deleted_at is null and not p.removed
+    and r.created_at > now() - interval '30 days'
+  order by r.created_at desc limit 20;
+$$;
+create or replace function mark_replies_seen() returns void
+language sql security definer set search_path = public as $$
+  update profiles set replies_seen_at = now() where id = auth.uid();
+$$;
+revoke all on function my_replies() from public, anon;
+revoke all on function mark_replies_seen() from public, anon;
+grant execute on function my_replies() to authenticated;
+grant execute on function mark_replies_seen() to authenticated;

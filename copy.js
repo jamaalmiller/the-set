@@ -134,6 +134,9 @@ export const COPY = {
     removedListing: 'a listing that was removed', removedMember: 'a member who left',
   },
   // Home strip. Change the title here (an alternative, "On The Set Today", is pending John's OK).
+  deleteConfirm: "Delete this? This can't be undone.",
+  deleted: 'Deleted.',
+  removedByAuthor: 'The post this replied to was removed.',
   happening: {
     title: "What's happening",
     sub: "What's happening with your people and our community.",

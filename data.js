@@ -5,6 +5,7 @@ export const DEMO = !/^https:\/\//.test(SUPABASE_URL) || SUPABASE_ANON_KEY.start
 export const LINK_RE = /(https?:\/\/|www\.|\.(com|net|org|io|co|us|ly|me|app|gg|tv|info|biz)(\b|\/)|<img|!\[)/i;
 
 const FRIENDLY = {
+  NOT_YOURS: 'You can only delete your own posts.',
   BAD_CODE: "That code didn't work. Check it and try again, or request an invite.",
   SLOW_MODE: 'Easy now. Give it about 10 seconds between posts.',
   NO_LINKS: 'Links and images are not allowed yet. Please take the link out and try again.',
@@ -108,7 +109,7 @@ async function supabaseBackend() {
     async happening() {
       const [c, l] = await Promise.all([
         sb.from('comments').select('id, topic_id, author_name, body, created_at, topics!inner(kind, title, grp)')
-          .eq('hidden', false).eq('removed', false).order('created_at', { ascending: false }).limit(25),
+          .eq('hidden', false).eq('removed', false).is('deleted_at', null).order('created_at', { ascending: false }).limit(25),
         sb.from('listings').select('id, category, name, city, created_at').eq('published', true).order('created_at', { ascending: false }).limit(3)]);
       const posts = chk(c).filter(x => x.topics && !x.topics.grp && x.body).slice(0, 5)
         .map(x => ({ id: x.id, topic_id: x.topic_id, kind: x.topics.kind, topic: x.topics.title, author_name: x.author_name, body: x.body, created_at: x.created_at }));
@@ -139,6 +140,7 @@ async function supabaseBackend() {
       return Object.fromEntries(paths.map(p => [p, urlCache.get(p)?.url]).filter(([, u]) => u));
     },
     async flag(comment_id) { chk(await sb.from('reports').insert({ comment_id })); },
+    async deleteMine(id) { chk(await sb.rpc('delete_my_comment', { p_id: id })); },
     // Live updates; falls back to polling every 5s if the live channel errors.
     subscribe(topicId, onChange) {
       let poll = null;
@@ -305,7 +307,8 @@ function demoBackend() {
     async community() { need(me(), 'NOT_MEMBER'); return (db.community ||= []).filter(i => i.published).sort((a, b) => (b.sort - a.sort) || (a.created_at < b.created_at ? 1 : -1)).slice(0, 3); },
     async topics(kind) { need(me(), 'NOT_MEMBER'); return db.topics.filter(t => t.kind === kind).slice().reverse(); },
     async topic(tid) { need(me(), 'NOT_MEMBER'); return db.topics.find(t => t.id === tid) || null; },
-    async comments(tid) { return db.comments.filter(c => c.topic_id === tid && (isAdmin() || (!c.hidden && !c.removed))); },
+    async comments(tid) { return db.comments.filter(c => c.topic_id === tid && (isAdmin() || (!c.hidden && !c.removed && !c.deleted_at))); },
+    async deleteMine(cid) { const c = db.comments.find(c => c.id === cid); need(c && c.user_id === db.me && !c.deleted_at, 'NOT_YOURS'); c.deleted_at = now(); notify(); },
     async post(topic_id, parent_id, body, photo) {
       const p = me(); need(p, 'NOT_MEMBER'); need(p.status !== 'muted', 'MUTED'); need(p.guidelines_accepted_at, 'GUIDELINES');
       const t = db.topics.find(t => t.id === topic_id); need(t && !t.locked, 'LOCKED');
