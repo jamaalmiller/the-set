@@ -6,6 +6,10 @@ export const LINK_RE = /(https?:\/\/|www\.|\.(com|net|org|io|co|us|ly|me|app|gg|
 
 const FRIENDLY = {
   NOT_YOURS: 'You can only delete your own posts.',
+  NAME_LENGTH: 'Your name needs 2 to 30 characters.',
+  NAME_CONTACT: 'Names can’t include links, emails, @ or phone numbers.',
+  NAME_RESERVED: 'That name is saved for the admin. Please pick another.',
+  NAME_LIMIT: 'You can change your name 3 times a day. Try again tomorrow.',
   BAD_CODE: "That code didn't work. Check it and try again, or request an invite.",
   SLOW_MODE: 'Easy now. Give it about 10 seconds between posts.',
   NO_LINKS: 'Links and images are not allowed yet. Please take the link out and try again.',
@@ -144,6 +148,7 @@ async function supabaseBackend() {
     async like(id, on) { chk(on ? await sb.from('likes').insert({ comment_id: id }) : await sb.from('likes').delete().eq('comment_id', id).eq('member_id', profile.id)); },
     async myReplies() { return chk(await sb.rpc('my_replies')) || []; },
     async markRepliesSeen() { chk(await sb.rpc('mark_replies_seen')); },
+    async setName(name) { return chk(await sb.rpc('update_display_name', { new_name: name })); },
     async deleteMine(id) { chk(await sb.rpc('delete_my_comment', { p_id: id })); },
     // Live updates; falls back to polling every 5s if the live channel errors.
     subscribe(topicId, onChange) {
@@ -188,6 +193,7 @@ async function supabaseBackend() {
       },
       async members() { return chk(await sb.from('profiles').select('*').order('created_at', { ascending: false })); },
       async setMember(id, status) { chk(await sb.from('profiles').update({ status }).eq('id', id)); },
+      async resetName(id) { chk(await sb.rpc('admin_reset_name', { p_member: id })); },
       async communityAll() { return chk(await sb.from('community_items').select('*').order('sort', { ascending: false }).order('created_at', { ascending: false })); },
       async saveCommunity(it) { const { id, ...rest } = it; if (id) chk(await sb.from('community_items').update(rest).eq('id', id)); else chk(await sb.from('community_items').insert(rest)); },
       async deleteCommunity(id) { chk(await sb.from('community_items').delete().eq('id', id)); },
@@ -318,6 +324,8 @@ function demoBackend() {
       return db.comments.filter(c => mine.has(c.parent_id) && c.user_id !== p.id && !c.hidden && !c.removed && !c.deleted_at && !db.topics.find(t => t.id === c.topic_id)?.grp)
         .map(c => { const t = db.topics.find(t => t.id === c.topic_id); return { id: c.id, topic_id: c.topic_id, kind: t.kind, topic: t.title, author_name: c.author_name, created_at: c.created_at, is_new: c.created_at > (p.replies_seen_at || '') }; }).reverse().slice(0, 20); },
     async markRepliesSeen() { const p = me(); if (p) { p.replies_seen_at = now(); notify(); } },
+    async setName(name) { const p = me(); need(p, 'NOT_MEMBER'); const n = name.trim().replace(/\s+/g, ' '); need(n.length >= 2 && n.length <= 30, 'NAME_LENGTH'); need(!/@|https?:|www\./i.test(n), 'NAME_CONTACT');
+      p.display_name = n; db.comments.forEach(c => { if (c.user_id === p.id) c.author_name = n; }); notify(); return n; },
     async deleteMine(cid) { const c = db.comments.find(c => c.id === cid); need(c && c.user_id === db.me && !c.deleted_at, 'NOT_YOURS'); c.deleted_at = now(); notify(); },
     async post(topic_id, parent_id, body, photo) {
       const p = me(); need(p, 'NOT_MEMBER'); need(p.status !== 'muted', 'MUTED'); need(p.guidelines_accepted_at, 'GUIDELINES');
@@ -365,6 +373,7 @@ function demoBackend() {
       async setComment(cid, f) { Object.assign(db.comments.find(c => c.id === cid), f); if (f.hidden === false || f.removed) db.reports.forEach(r => { if (r.comment_id === cid) r.reviewed = true; }); notify(); },
       async members() { return db.profiles; },
       async setMember(mid, status) { db.profiles.find(p => p.id === mid).status = status; save(); },
+      async resetName(mid) { db.profiles.find(p => p.id === mid).display_name = 'Member'; db.comments.forEach(c => { if (c.user_id === mid) c.author_name = 'Member'; }); save(); },
       async communityAll() { return (db.community ||= []).slice().sort((a, b) => (b.sort - a.sort) || (a.created_at < b.created_at ? 1 : -1)); },
       async saveCommunity(it) { db.community ||= []; if (it.url && !/^https:\/\/[^\s<>"]+$/.test(it.url)) throw new Error('BAD_URL');
         if (it.id) Object.assign(db.community.find(x => x.id === it.id), it); else db.community.push({ sort: 0, ...it, id: id(), created_at: now() }); save(); },

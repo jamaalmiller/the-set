@@ -4,7 +4,7 @@ import { SHOW_PRESENCE } from './config.js';
 
 // ===== Phone bottom bar: switch options by changing ONE line (NAV = NAV_A or NAV_B) =====
 const NAV_A = { bar: ['clinic', 'block', 'counsel', 'porch'], more: ['peace', 'square', 'guidelines', 'about', 'install', 'signout'] };
-const NAV_B = { bar: ['clinic', 'porch', 'block', 'square'], more: ['counsel', 'classroom', 'peace', 'guidelines', 'about', 'install', 'signout'] };
+const NAV_B = { bar: ['clinic', 'porch', 'block', 'square'], more: ['profile', 'counsel', 'classroom', 'peace', 'guidelines', 'about', 'install', 'signout'] };
 const NAV = NAV_B;
 void NAV_A;
 
@@ -13,9 +13,9 @@ const SECTIONS = {
   block: { label: 'The Block', short: 'Block', icon: '▦' }, classroom: { label: 'The Classroom', short: 'Classroom', icon: '✎' }, counsel: { label: 'The Counsel', short: 'Counsel', icon: '⚖' },
   porch: { label: 'The Porch', short: 'Porch', icon: '☼' }, peace: { label: 'The Peace Table', short: 'Peace', icon: '☮' },
   square: { label: 'The Town Square', short: 'Square', icon: '◎' }, guidelines: { label: 'Guidelines' },
-  about: { label: 'About' }, install: { label: 'Install help' }, signout: { label: 'Sign out' }, admin: { label: 'Admin' },
+  about: { label: 'About' }, install: { label: 'Install help' }, signout: { label: 'Sign out' }, profile: { label: 'Your profile' }, admin: { label: 'Admin' },
 };
-const MEMBER_ONLY = ['corner', 'clinic', 'counsel', 'classroom', 'block', 'peace', 'porch', 'square', 'welcome'];
+const MEMBER_ONLY = ['profile', 'corner', 'clinic', 'counsel', 'classroom', 'block', 'peace', 'porch', 'square', 'welcome'];
 
 const S = { user: null, profile: null, cleanup: [], newReplies: 0 };
 const badge = () => S.newReplies ? ` <span class="countbadge" aria-label="${S.newReplies} new replies">${S.newReplies > 9 ? '9+' : S.newReplies}</span>` : '';
@@ -92,6 +92,16 @@ V.install = () => `<h1>Install help</h1><p>${esc(COPY.install)}</p>
   <div class="card"><h2>iPhone (Safari)</h2><ol><li>Tap the Share button (square with an arrow).</li><li>Tap "Add to Home Screen".</li><li>Tap "Add".</li></ol></div>
   <div class="card"><h2>Android (Chrome)</h2><ol><li>Tap the browser menu (three dots).</li><li>Tap "Install app" or "Add to Home screen".</li><li>Tap "Install".</li></ol></div>`;
 V.more = () => `<h1>More</h1><div class="list">${S.profile ? `<a class="navlink" href="#/home">${esc(COPY.replies.title)}${badge()}</a>` : ''}${NAV.more.map(navLink).join('')}${isAdmin() ? navLink('admin') : ''}</div>`;
+
+V.profile = () => `<h1>Your profile</h1><form id="nameform" class="card form">
+  <label>Your name (what members see)<input name="name" required minlength="2" maxlength="30" value="${esc(S.profile?.display_name)}" autocomplete="nickname"></label>
+  <p class="small">2 to 30 characters. No links, emails, @ or phone numbers. You can change it 3 times a day.</p>
+  <button class="btn">Save</button><p class="error" role="alert" hidden></p></form>`;
+V.profile.after = () => $('#nameform').onsubmit = async e => {
+  e.preventDefault(); const err = e.target.querySelector('.error'); err.hidden = true; const btn = e.target.querySelector('button'); btn.disabled = true;
+  try { const n = await api.setName(e.target.name.value); await refreshSession(); e.target.name.value = n; toast('Saved. Members now see you as ' + n + '.'); }
+  catch (x) { err.textContent = friendly(x); err.hidden = false; } finally { btn.disabled = false; }
+};
 
 V.code = () => {
   const signedInNoProfile = S.user && !S.profile;
@@ -543,8 +553,10 @@ V.admin.after = async (tab = 'requests') => {
       const rows = await A.members();
       box.innerHTML = rows.map(m => `<div class="card"><h2>${esc(m.display_name)} <span class="tag">${esc(m.role)}</span> <span class="tag">${esc(m.status)}</span></h2>
         ${m.role === 'admin' ? '' : `<div class="row">${m.status === 'active' ? `<button class="btn alt small" data-st="muted" data-mid="${esc(m.id)}">Mute</button>` : `<button class="btn small" data-st="active" data-mid="${esc(m.id)}">${m.status === 'removed' ? 'Bring back' : 'Unmute'}</button>`}
-        ${m.status !== 'removed' ? `<button class="btn alt small" data-st="removed" data-mid="${esc(m.id)}">Remove</button>` : ''}</div>`}</div>`).join('');
-      box.onclick = async e => { const b = e.target.closest('[data-st]'); if (b && (b.dataset.st !== 'removed' || confirm('Remove this member? They lose all access.'))) { await A.setMember(b.dataset.mid, b.dataset.st); R.members(); } };
+        ${m.status !== 'removed' ? `<button class="btn alt small" data-st="removed" data-mid="${esc(m.id)}">Remove</button>` : ''}
+        <button class="btn alt small" data-resetname="${esc(m.id)}">Reset name</button></div>`}</div>`).join('');
+      box.onclick = async e => { const rn = e.target.closest('[data-resetname]');
+        if (rn && confirm('Reset this name to "Member"? Their posts will show "Member" too.')) { try { await A.resetName(rn.dataset.resetname); R.members(); } catch (x) { toast(friendly(x)); } return; } const b = e.target.closest('[data-st]'); if (b && (b.dataset.st !== 'removed' || confirm('Remove this member? They lose all access.'))) { await A.setMember(b.dataset.mid, b.dataset.st); R.members(); } };
     },
     async help() {
       const rows = await A.help();

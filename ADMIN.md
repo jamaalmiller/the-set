@@ -16,6 +16,7 @@ Shows the number of members, muted members, join requests waiting, comments, pho
 - **Topics and photos**: lock or unlock a topic, and turn **Photos on/off** for each topic. Photos off is the kill switch: new photo posts stop right away and existing photos stay. Right now photos are on for The Porch only, and Town Square is text only. The Town Square topic **Schools, college, trades and our kids** is The Classroom's discussion room.
 - **Flags**: posts members flagged, with their photo if there is one. Any post with 2 flags is hidden automatically. **Restore** brings a post back. **Remove** takes the post down and deletes its photo file for good.
 - **Members deleting their own posts**: any member can tap **Delete** on their own post or comment. It disappears for members right away, but you can still see it (marked "deleted by author") in Flags and in the thread, so flag records are kept. Replies to it stay up.
+- **Reset name** (Members tab): changes a member's name to "Member", on their old posts too. Members can change their own name in More > Your profile (2 to 30 characters, no links, emails, @ or phone numbers, not "admin" or similar, 3 times a day).
 - **Members**: mute, unmute or remove members. (Making someone an admin is done for you by Site & Build on request; there is no button for it yet.)
 - **Help requests**: questions from members, with a copy-message helper for replying.
 - **Contact requests**: private notes members send with **Request contact** (see below). The tab shows how many are new.
