@@ -79,3 +79,4 @@ a.card.block.corner { border-left-color:var(--ok); background:#f2f8f3; } .note.s
 .happening h3 { margin:16px 0 6px; } .hap-item { display:block; color:var(--ink); text-decoration:none; padding:10px 0; border-top:1px solid rgba(0,0,0,.08); }
 .hap-item p { margin:4px 0; } .hap-item .tag { font-size:.8em; }
 .tbody { white-space:pre-line; }
+.linkbtn.like { text-decoration:none; } .linkbtn.like.on { font-weight:700; }

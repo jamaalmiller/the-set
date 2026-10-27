@@ -140,6 +140,8 @@ async function supabaseBackend() {
       return Object.fromEntries(paths.map(p => [p, urlCache.get(p)?.url]).filter(([, u]) => u));
     },
     async flag(comment_id) { chk(await sb.from('reports').insert({ comment_id })); },
+    async likeCounts(topicId) { return chk(await sb.rpc('like_counts', { p_topic: topicId })) || []; },
+    async like(id, on) { chk(on ? await sb.from('likes').insert({ comment_id: id }) : await sb.from('likes').delete().eq('comment_id', id).eq('member_id', profile.id)); },
     async deleteMine(id) { chk(await sb.rpc('delete_my_comment', { p_id: id })); },
     // Live updates; falls back to polling every 5s if the live channel errors.
     subscribe(topicId, onChange) {
@@ -308,6 +310,8 @@ function demoBackend() {
     async topics(kind) { need(me(), 'NOT_MEMBER'); return db.topics.filter(t => t.kind === kind).slice().reverse(); },
     async topic(tid) { need(me(), 'NOT_MEMBER'); return db.topics.find(t => t.id === tid) || null; },
     async comments(tid) { return db.comments.filter(c => c.topic_id === tid && (isAdmin() || (!c.hidden && !c.removed && !c.deleted_at))); },
+    async likeCounts(tid) { const m = new Map(); (db.likes ||= []).forEach(l => { const c = db.comments.find(c => c.id === l.comment_id); if (c?.topic_id === tid) { const r = m.get(l.comment_id) || { comment_id: l.comment_id, n: 0, mine: false }; r.n++; r.mine ||= l.member_id === db.me; m.set(l.comment_id, r); } }); return [...m.values()]; },
+    async like(cid, on) { need(me(), 'NOT_MEMBER'); db.likes ||= []; db.likes = db.likes.filter(l => !(l.comment_id === cid && l.member_id === db.me)); if (on) db.likes.push({ comment_id: cid, member_id: db.me }); notify(); },
     async deleteMine(cid) { const c = db.comments.find(c => c.id === cid); need(c && c.user_id === db.me && !c.deleted_at, 'NOT_YOURS'); c.deleted_at = now(); notify(); },
     async post(topic_id, parent_id, body, photo) {
       const p = me(); need(p, 'NOT_MEMBER'); need(p.status !== 'muted', 'MUTED'); need(p.guidelines_accepted_at, 'GUIDELINES');

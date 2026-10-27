@@ -277,7 +277,7 @@ function commentHtml(c, replies, canContact = false) {
     <p class="meta"><strong>${esc(c.author_name)}</strong> · ${when(c.created_at)}${c.hidden ? ' · <em>hidden (flagged)</em>' : ''}${c.removed ? ' · <em>removed</em>' : ''}${c.deleted_at ? ' · <em>deleted by author</em>' : ''}</p>
     ${c.body ? `<p class="body">${esc(c.body)}</p>` : ''}
     ${c.photo_path && !c.removed ? `<img class="photo" data-photo="${esc(c.photo_path)}" alt="${esc(COPY.photos.alt(c.author_name))}" loading="lazy" decoding="async" width="320" height="240">` : ''}
-    <div class="actions"><button class="linkbtn" data-reply="${c.id}" data-name="${esc(c.author_name)}">Reply</button>
+    <div class="actions">${c.deleted_at || c.removed ? '' : likeBtn(c.id)}<button class="linkbtn" data-reply="${c.id}" data-name="${esc(c.author_name)}">Reply</button>
     ${mine ? (c.deleted_at ? '' : `<button class="linkbtn" data-del="${c.id}">Delete</button>`) : `<button class="linkbtn" data-flag="${c.id}">Flag</button>`}
     ${canContact && !mine && c.user_id && !c.removed ? `<button class="linkbtn" data-contact-member="${esc(c.user_id)}" data-name="${esc(c.author_name)}">${esc(COPY.contact.title)}</button>` : ''}</div>
     ${replies.length ? `<div class="replies">${replies.map(r => commentHtml(r, [], canContact)).join('')}</div>` : ''}</article>`;
@@ -287,6 +287,9 @@ async function fillPhotos(root) {
   let urls = {}; try { urls = await api.photoUrls(imgs.map(i => i.dataset.photo)); } catch {}
   imgs.forEach(i => { const u = urls[i.dataset.photo]; if (u) { if (i.src !== u) i.src = u; i.removeAttribute('width'); i.removeAttribute('height'); } else i.replaceWith(Object.assign(document.createElement('p'), { className: 'small', textContent: COPY.photos.unavailable })); });
 }
+let likes = new Map(); // comment id -> { n, mine } for the open thread (counts only, never who)
+const likeBtn = id => { const l = likes.get(id) || { n: 0, mine: false };
+  return `<button class="linkbtn like${l.mine ? ' on' : ''}" data-like="${id}" aria-pressed="${l.mine}">♥ ${l.mine ? 'Liked' : 'Like'}${l.n ? ` · ${l.n}` : ''}</button>`; };
 let orphan = () => false; // set per thread: true when a reply's parent is no longer visible
 async function mountThread(t, o) {
   let replyTo = null;
@@ -295,7 +298,8 @@ async function mountThread(t, o) {
   const canContact = !t.grp && (t.kind === 'porch' || t.kind === 'square') && await api.contactOn().catch(() => false);
   if (canContact) box.insertAdjacentHTML('beforebegin', '<div id="contactbox"></div>');
   const load = async () => {
-    const all = await api.comments(t.id); const byId = new Map(all.map(c => [c.id, c]));
+    const [all, lc] = await Promise.all([api.comments(t.id), api.likeCounts(t.id).catch(() => [])]);
+    likes = new Map(lc.map(r => [r.comment_id, r])); const byId = new Map(all.map(c => [c.id, c]));
     orphan = c => !byId.has(c.parent_id);
     const root = c => { let r = c; while (r.parent_id && byId.get(r.parent_id)) r = byId.get(r.parent_id); return r.id; };
     const tops = all.filter(c => !c.parent_id || !byId.has(c.parent_id));
@@ -340,6 +344,9 @@ async function mountThread(t, o) {
       $('#cancelreply').onclick = () => { replyTo = null; p.hidden = true; }; $('#composer textarea').focus(); }
     const k = e.target.closest('[data-contact-member]');
     if (k && canContact) contactForm($('#contactbox'), { type: 'member', member_id: k.dataset.contactMember, name: k.dataset.name, topic_id: t.id });
+    const lk = e.target.closest('[data-like]');
+    if (lk && !lk.disabled) { lk.disabled = true; const id = +lk.dataset.like, on = !likes.get(id)?.mine;
+      try { await api.like(id, on); await load(); } catch (x) { toast(friendly(x)); lk.disabled = false; } }
     const dl = e.target.closest('[data-del]');
     if (dl && confirm(COPY.deleteConfirm)) {
       try { await api.deleteMine(+dl.dataset.del); toast(COPY.deleted); await load(); } catch (x) { toast(friendly(x)); }
