@@ -31,7 +31,7 @@ const FRIENDLY = {
   CONTACT_EMPTY: 'Add a short note so we know how to help.',
   SELF_TARGET: "That's you! Pick someone else.",
   BAD_TARGET: "That didn't go through. Please try again.",
-  BAD_URL: 'Links must start with https:// and point to the original source.',
+  BAD_URL: 'Each item needs a source link starting with https:// or http:// that points to the original source.',
   EMPTY: 'Write something or add a photo first.',
 };
 export function friendly(err) {
@@ -442,7 +442,7 @@ function demoBackend() {
       async reviewAvatar(mid, ok) { const p = db.profiles.find(x => x.id === mid); if (p) { p.avatar_status = ok ? 'approved' : 'rejected'; save(); } },
       async clearProfile(mid, what) { const p = db.profiles.find(x => x.id === mid); if (!p) return; if (what === 'photo') { p.avatar_path = null; p.avatar_status = 'none'; } else p[what] = null; save(); },
       async communityAll() { return (db.community ||= []).slice().sort((a, b) => (b.sort - a.sort) || (a.created_at < b.created_at ? 1 : -1)); },
-      async saveCommunity(it) { db.community ||= []; if (it.url && !/^https:\/\/[^\s<>"]+$/.test(it.url)) throw new Error('BAD_URL');
+      async saveCommunity(it) { db.community ||= []; if (it.url !== undefined && !/^https?:\/\/[^\s<>"]+$/.test(it.url)) throw new Error('BAD_URL');
         if (it.id) Object.assign(db.community.find(x => x.id === it.id), it); else db.community.push({ sort: 0, ...it, id: id(), created_at: now() }); save(); },
       async deleteCommunity(cid) { db.community = (db.community || []).filter(x => x.id !== cid); save(); },
       async createTopic(title, body) { db.topics.push({ id: id(), kind: 'square', title, body, locked: false, created_at: now() }); save(); },
