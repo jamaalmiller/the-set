@@ -174,6 +174,7 @@ async function supabaseBackend() {
       if (old) await sb.storage.from('avatars').remove([old]);
     },
     async removeAvatar() { const old = chk(await sb.rpc('remove_my_avatar')); if (old) await sb.storage.from('avatars').remove([old]); },
+    async sendAppt(r) { chk(await sb.rpc('send_appointment_request', { p_listing_id: r.listing_id, p_service: r.service, p_day: r.day, p_time: r.time, p_note: r.note || null })); },
     async setCard(bio, city) { chk(await sb.rpc('set_my_card', { p_bio: bio, p_city: city })); },
     async card(member, topicId) { return (chk(await sb.rpc('profile_card', { p_member: member, p_topic_id: topicId })) || [])[0] || null; },
     async avatarPaths(ids) { if (!ids.length) return {}; return Object.fromEntries((chk(await sb.rpc('avatar_paths', { p_ids: [...new Set(ids)] })) || []).map(r => [r.id, r.path])); },
@@ -237,6 +238,9 @@ async function supabaseBackend() {
       async setMember(id, status) { chk(await sb.from('profiles').update({ status }).eq('id', id)); },
       async resetName(id) { chk(await sb.rpc('admin_reset_name', { p_member: id })); },
       async setSetting(k, v) { chk(await sb.from('site_settings').update({ [k]: v }).eq('id', true)); },
+      async appts() { return chk(await sb.from('appointment_requests').select('*, requester:profiles!appointment_requests_requester_id_fkey(display_name, appt_blocked), listing:listings(name, category)').order('created_at', { ascending: false }).limit(200)); },
+      async setAppt(id, status) { chk(await sb.from('appointment_requests').update({ status }).eq('id', id)); },
+      async blockAppt(uid, b) { chk(await sb.from('profiles').update({ appt_blocked: b }).eq('id', uid)); },
       async avatars() { return chk(await sb.from('profiles').select('id, display_name, avatar_path, avatar_status').not('avatar_path', 'is', null).order('avatar_status')); },
       async reviewAvatar(id, ok) { chk(await sb.rpc('admin_review_avatar', { p_member: id, p_ok: ok })); },
       async clearProfile(id, what) { const old = chk(await sb.rpc('admin_clear_profile', { p_member: id, p_what: what })); if (old) await sb.storage.from('avatars').remove([old]); },
@@ -364,6 +368,8 @@ function demoBackend() {
     async settings() { return db.settings ||= {}; },
     async uploadAvatar(blob) { const p = me(); need(p, 'NOT_MEMBER'); const k = 'av-' + id(); demoPhotos.set(k, URL.createObjectURL(blob)); p.avatar_path = k; p.avatar_status = 'pending'; save(); },
     async removeAvatar() { const p = me(); if (p) { p.avatar_path = null; p.avatar_status = 'none'; save(); } },
+    async sendAppt(r) { const p = me(); need(p, 'NOT_MEMBER'); need(!p.appt_blocked, 'APPT_BLOCKED'); need(r.service && r.day && r.time, 'APPT_EMPTY');
+      const l = db.listings.find(x => x.id === r.listing_id); (db.appts ||= []).unshift({ id: id(), requester_id: p.id, requester: { display_name: p.display_name, appt_blocked: !!p.appt_blocked }, listing: { name: l?.name, category: l?.category }, service: r.service, pref_day: r.day, pref_time: r.time, note: r.note || null, status: 'new', created_at: now() }); save(); },
     async setCard(bio, city) { const p = me(); need(p, 'NOT_MEMBER'); need((bio || '').length <= 160, 'BIO_LENGTH'); need(!LINK_RE.test(bio || '') && !/@|\d{7,}/.test((bio || '').replace(/[\s().-]/g, '')), 'CARD_CONTACT');
       need(!city || /^online$/i.test(city.trim()) || /^[A-Za-z][A-Za-z .'-]*, ?[A-Za-z]{2}$/.test(city.trim()), 'CITY_FORMAT'); p.bio = bio?.trim() || null; p.city = city?.trim() || null; save(); },
     async card(mid) { const p = db.profiles.find(x => x.id === mid); return p ? { id: p.id, display_name: p.display_name, bio: p.bio, city: p.city, avatar_path: p.avatar_status === 'approved' ? p.avatar_path : null } : null; },
@@ -429,6 +435,9 @@ function demoBackend() {
       async setMember(mid, status) { db.profiles.find(p => p.id === mid).status = status; save(); },
       async resetName(mid) { db.profiles.find(p => p.id === mid).display_name = 'Member'; db.comments.forEach(c => { if (c.user_id === mid) c.author_name = 'Member'; }); save(); },
       async setSetting(k, v) { (db.settings ||= {})[k] = v; save(); },
+      async appts() { return db.appts || []; },
+      async setAppt(aid, status) { const a = (db.appts || []).find(x => x.id === aid); if (a) { a.status = status; save(); } },
+      async blockAppt(uid, b) { const p = db.profiles.find(x => x.id === uid); if (p) p.appt_blocked = b; (db.appts || []).forEach(a => { if (a.requester_id === uid) a.requester.appt_blocked = b; }); save(); },
       async avatars() { return db.profiles.filter(p => p.avatar_path); },
       async reviewAvatar(mid, ok) { const p = db.profiles.find(x => x.id === mid); if (p) { p.avatar_status = ok ? 'approved' : 'rejected'; save(); } },
       async clearProfile(mid, what) { const p = db.profiles.find(x => x.id === mid); if (!p) return; if (what === 'photo') { p.avatar_path = null; p.avatar_status = 'none'; } else p[what] = null; save(); },

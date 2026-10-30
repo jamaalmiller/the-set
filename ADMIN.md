@@ -67,3 +67,12 @@ Keep your Supabase password and any "service_role" key private. Don't paste them
 - **Approving photos:** Admin, then **Avatars**: each photo shows Waiting / Approved / Rejected with Approve and Reject. Members only ever see approved photos; the member sees their own waiting photo with "Waiting for the admin."
 - **Clearing:** Admin, then **Members**: Clear bio / Clear city / Clear photo on any member.
 - Cards and small photos appear only in The Porch and Town Square. Never in The Circle (the database refuses Circle cards). Email is never shown.
+
+## Appointment requests (switch starts OFF)
+- **Master switch:** Admin, then **Appointment requests**, top card: **Turn on / Turn off**. While off, members see no button.
+- **Directory switches** (same card): The Block, The Clinic, The Classroom, The Peace Table: On by default. The Counsel: Off until you confirm. The master switch still has to be on.
+- **Per-listing switch:** Admin, then **Listings**: each listing has "Appointments: on/off" (on by default).
+- **Preview as admin (switches off):** open The Block (or any directory). Published listings show "Request an appointment" with "Preview: hidden from members". Send one to yourself to see it arrive in the Appointment requests tab.
+- **The form:** service, preferred day, preferred time, optional note. No links, emails, @ or phone numbers. The member's name is attached. 3 a day per member. Clinic, Classroom, Counsel and Peace Table forms show a privacy reminder.
+- **Handling:** Mark handled / Pass it along / Hold for later / Block requester (Unblock later). Only you see requests. No calendar, no payments.
+- The Circle is never included: requests attach only to directory listings, and the database only accepts the five directories above.

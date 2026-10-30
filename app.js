@@ -17,7 +17,7 @@ const SECTIONS = {
 };
 const MEMBER_ONLY = ['profile', 'corner', 'clinic', 'counsel', 'classroom', 'block', 'peace', 'porch', 'square', 'welcome'];
 
-const S = { user: null, profile: null, cleanup: [], newReplies: 0 };
+const S = { user: null, profile: null, cleanup: [], newReplies: 0, appt: { on: false, dirs: {} } };
 const badge = () => S.newReplies ? ` <span class="countbadge" aria-label="${S.newReplies} new replies">${S.newReplies > 9 ? '9+' : S.newReplies}</span>` : '';
 async function refreshReplies() { if (!S.profile) { S.newReplies = 0; return []; }
   try { const r = await api.myReplies(); S.newReplies = r.filter(x => x.is_new).length; return r; } catch { return []; } }
@@ -243,12 +243,40 @@ function listingCard(l) {
     <p class="tags">${l.verified ? '<span class="badge">✓ Verified by The Set</span>' : ''}${l.telehealth ? '<span class="tag">Telehealth</span>' : ''}${cl && l.special_needs ? `<span class="tag">${esc(COPY.corner.tag)}</span>` : ''}${dl !== null && dl >= 0 && dl <= 14 ? `<span class="tag warn">${esc(COPY.dirs.classroom.closingSoon)}</span>` : ''}${isAdmin() && !l.published ? '<span class="tag warn">Not published</span>' : ''}</p>
     ${dl !== null ? `<p class="deadline">${esc(COPY.dirs.classroom.deadline(fmtDate(l.deadline)))}</p>` : ''}
     ${l.description ? `<p>${esc(l.description)}</p>` : ''}${contact ? `<p class="contact">${esc(contact)}</p>` : ''}
-    ${S.contactOn && l.published ? `<div class="actions"><button class="linkbtn" data-contact-listing="${l.id}" data-name="${esc(l.name)}">${esc(COPY.contact.title)}</button></div>` : ''}</article>`;
+    ${(S.contactOn || apptOk(l)) && l.published ? `<div class="actions">${S.contactOn ? `<button class="linkbtn" data-contact-listing="${l.id}" data-name="${esc(l.name)}">${esc(COPY.contact.title)}</button>` : ''}${apptOk(l) ? `<button class="linkbtn" data-appt="${l.id}" data-name="${esc(l.name)}">${esc(COPY.appt.label[l.category])}</button>${S.appt.on ? '' : ' ' + previewTag()}` : ''}</div>` : ''}</article>`;
+}
+// Appointment requests: master switch + directory switch + listing switch. Admins preview while switches are off.
+const APPT_DIRS = ['block', 'clinic', 'classroom', 'peace', 'counsel'];
+const APPT_DEFAULT = { block: true, clinic: true, classroom: true, peace: true, counsel: false };
+function apptOk(l) {
+  if (!l.published || !APPT_DIRS.includes(l.category)) return false;
+  return isAdmin() || (S.appt.on && S.appt.dirs[l.category] && l.appointments_on !== false);
+}
+function apptForm(box, l) {
+  const A = COPY.appt, priv = A.privacy[l.category];
+  box.innerHTML = `<form id="apptform" class="card form"><h2>${esc(A.label[l.category])}</h2><p>${esc(A.intro)}</p>${priv ? `<p class="small"><strong>${esc(priv)}</strong></p>` : ''}
+    <p class="meta"><strong>${esc(A.to(l.name))}</strong></p>
+    <label>${esc(A.service)}<input name="service" maxlength="80" required></label>
+    <label>${esc(A.day)}<input name="day" maxlength="40" required></label>
+    <label>${esc(A.time)}<input name="time" maxlength="40" required></label>
+    <label>${esc(A.note)}<textarea name="note" maxlength="300" rows="3"></textarea></label>
+    <p class="small">${esc(A.rule)}</p>
+    <div class="row"><button class="btn">${esc(A.send)}</button><button type="button" class="btn alt" id="apptcancel">${esc(A.cancel)}</button></div></form>`;
+  const f = $('#apptform'); f.scrollIntoView({ behavior: 'smooth' }); f.service.focus();
+  $('#apptcancel').onclick = () => { box.innerHTML = ''; };
+  let busy = false;
+  f.onsubmit = async e => { e.preventDefault(); if (busy) return; const d = formData(f);
+    const vals = [d.service, d.day, d.time, d.note].map(v => (v || '').trim());
+    if (vals.some(v => LINK_RE.test(v) || /@/.test(v) || /\d{7,}/.test(v.replace(/[\s().-]/g, '')))) return toast(friendly('CARD_CONTACT'));
+    busy = true; f.querySelector('button.btn').disabled = true;
+    try { await api.sendAppt({ listing_id: l.id, service: vals[0], day: vals[1], time: vals[2], note: vals[3] }); box.innerHTML = `<div class="card"><p>${esc(COPY.appt.sent)}</p></div>`; }
+    catch (x) { toast(friendly(x)); busy = false; f.querySelector('button.btn').disabled = false; } };
 }
 function dirAfter(cat) {
   return async () => {
     const c = COPY.dirs[cat]; let all = [];
     S.contactOn = await api.contactOn().catch(() => false);
+    const st = await api.settings().catch(() => ({})); S.appt = { on: !!st.appointments_on, dirs: { ...APPT_DEFAULT, ...(st.appt_dirs || {}) } };
     try { all = await api.listings(cat); } catch (x) { $('#results').innerHTML = `<p class="error">${esc(friendly(x))}</p>`; return; }
     const opts = (sel, vals) => { $(sel).innerHTML += [...new Set(vals)].sort().map(v => `<option>${esc(v)}</option>`).join(''); };
     opts('#fkind', cat === 'peace' ? [...COPY.peaceKinds, ...all.map(l => l.kind)] : cat === 'classroom' ? c.kinds : all.map(l => l.kind)); opts('#fcity', all.map(l => l.city));
@@ -269,6 +297,7 @@ function dirAfter(cat) {
       if (e.target.closest('[data-suggest]')) suggestForm(cat);
       const h = e.target.closest('[data-help]'); if (h) helpForm(h.dataset.help);
       const k = e.target.closest('[data-contact-listing]'); if (k) contactForm($('#helpbox'), { type: 'listing', listing_id: +k.dataset.contactListing, name: k.dataset.name });
+      const ap = e.target.closest('[data-appt]'); if (ap) { const l = all.find(x => x.id === +ap.dataset.appt); if (l && apptOk(l)) apptForm($('#helpbox'), l); }
     });
   };
 }
@@ -501,7 +530,7 @@ V.corner.after = async () => { const rs = cornerRooms(await api.topics('square')
 
 // ---------- Admin (John only; the database enforces this too) ----------
 const ADMIN_TABS = [['requests', 'Join requests'], ['codes', 'Invite codes'], ['listings', 'Listings'], ['topics', 'Topics and photos'],
-  ['flags', 'Flags'], ['members', 'Members'], ['help', 'Help requests'], ['contact', 'Contact requests'], ['community', 'Community'], ['avatars', 'Avatars'], ['suggestions', 'Suggestions']];
+  ['flags', 'Flags'], ['members', 'Members'], ['help', 'Help requests'], ['contact', 'Contact requests'], ['community', 'Community'], ['appts', 'Appointment requests'], ['avatars', 'Avatars'], ['suggestions', 'Suggestions']];
 V.admin = (tab = 'requests') => `<h1>Admin</h1><div id="status" class="card status"><p class="small">Loading site status…</p></div><nav class="tabs">${ADMIN_TABS.map(([k, l]) => `<a href="#/admin/${k}" aria-current="${k === tab ? 'page' : 'false'}">${l}</a>`).join('')}</nav><div id="adm"><p>Loading…</p></div>`;
 V.admin.after = async (tab = 'requests') => {
   const A = api.admin, box = $('#adm');
@@ -559,7 +588,8 @@ V.admin.after = async (tab = 'requests') => {
         <button class="btn small" data-new>Add listing</button><div id="lform"></div>
         ${rows.map(l => listingCard(l) + `<div class="row"><button class="btn alt small" data-edit="${l.id}">Edit</button>
           <button class="btn alt small" data-toggle="published" data-lid="${l.id}">${l.published ? 'Unpublish' : 'Publish'}</button>
-          <button class="btn alt small" data-toggle="verified" data-lid="${l.id}">${l.verified ? 'Remove Verified' : 'Mark Verified'}</button></div>`).join('') || '<p>No listings yet.</p>'}`;
+          <button class="btn alt small" data-toggle="verified" data-lid="${l.id}">${l.verified ? 'Remove Verified' : 'Mark Verified'}</button>
+          ${APPT_DIRS.includes(l.category) ? `<button class="btn alt small" data-toggle="appointments_on" data-lid="${l.id}">${esc(l.appointments_on !== false ? COPY.appt.listingOn : COPY.appt.listingOff)}</button>` : ''}</div>`).join('') || '<p>No listings yet.</p>'}`;
       $('#lcat').onchange = e => R.listings(e.target.value);
       const form = (l = { category: cat }) => {
         $('#lform').innerHTML = `<form id="lf" class="card form"><h2>${l.id ? 'Edit' : 'Add'} listing · ${COPY.dirs[cat].title}</h2>
@@ -641,6 +671,26 @@ V.admin.after = async (tab = 'requests') => {
         if (cl) { if (confirm(COPY.profile.clearConfirm)) { try { await A.clearProfile(cl.dataset.mid, cl.dataset.clear); R.members(); } catch (x) { toast(friendly(x)); } } return; }
         const rn = e.target.closest('[data-resetname]');
         if (rn && confirm('Reset this name to "Member"? Their posts will show "Member" too.')) { try { await A.resetName(rn.dataset.resetname); R.members(); } catch (x) { toast(friendly(x)); } return; } const b = e.target.closest('[data-st]'); if (b && (b.dataset.st !== 'removed' || confirm('Remove this member? They lose all access.'))) { await A.setMember(b.dataset.mid, b.dataset.st); R.members(); } };
+    },
+    async appts() {
+      const C = COPY.appt, [rows, st] = await Promise.all([A.appts(), api.settings()]), dirs = { ...APPT_DEFAULT, ...(st.appt_dirs || {}) };
+      box.innerHTML = `<div class="card"><h2>${esc(C.switchName)}</h2><p>${esc(st.appointments_on ? C.switchOn : C.switchOff)}</p>
+        <button class="btn ${st.appointments_on ? 'alt' : ''} small" data-aon="${st.appointments_on ? 0 : 1}">${esc(st.appointments_on ? C.turnOff : C.turnOn)}</button>
+        <h3>${esc(C.dirsTitle)}</h3><div class="row">${APPT_DIRS.map(d => `<button class="btn ${dirs[d] ? '' : 'alt'} small" data-adir="${d}">${esc(C.dirNames[d])}: ${esc(dirs[d] ? C.dirOn : C.dirOff)}</button>`).join('')}</div></div>` +
+        (rows.length ? rows.map(r => `<div class="card"><p class="tags"><span class="tag ${r.status === 'new' ? 'warn' : ''}">${esc(C.tags[r.status] || r.status)}</span>${r.requester?.appt_blocked ? `<span class="tag">${esc(C.blockedTag)}</span>` : ''}</p>
+          <p><strong>${esc(C.from)}:</strong> ${esc(r.requester?.display_name || '')} · <strong>${esc(C.for)}:</strong> ${esc(r.listing?.name || '')} (${esc(C.dirNames[r.listing?.category] || '')}) · ${when(r.created_at)}</p>
+          <p><strong>${esc(C.service)}:</strong> ${esc(r.service)} · <strong>${esc(C.day)}:</strong> ${esc(r.pref_day)} · <strong>${esc(C.time)}:</strong> ${esc(r.pref_time)}</p>${r.note ? `<p>${esc(r.note)}</p>` : ''}
+          <div class="row"><button class="btn small" data-ast="handled" data-aid="${r.id}">${esc(C.handled)}</button><button class="btn alt small" data-ast="passed" data-aid="${r.id}">${esc(C.passed)}</button><button class="btn alt small" data-ast="held" data-aid="${r.id}">${esc(C.held)}</button>
+          ${r.requester?.appt_blocked ? `<button class="btn alt small" data-aunblock="${esc(r.requester_id)}">${esc(C.unblock)}</button>` : `<button class="btn alt small" data-ablock="${esc(r.requester_id)}" data-aid="${r.id}">${esc(C.block)}</button>`}</div></div>`).join('') : `<p>${esc(C.none)}</p>`);
+      box.onclick = async e => {
+        try {
+          const sw = e.target.closest('[data-aon]'); if (sw) { await A.setSetting('appointments_on', sw.dataset.aon === '1'); return R.appts(); }
+          const dd = e.target.closest('[data-adir]'); if (dd) { await A.setSetting('appt_dirs', { ...dirs, [dd.dataset.adir]: !dirs[dd.dataset.adir] }); return R.appts(); }
+          const s2 = e.target.closest('[data-ast]'); if (s2) { await A.setAppt(+s2.dataset.aid, s2.dataset.ast); return R.appts(); }
+          const b = e.target.closest('[data-ablock]'); if (b && confirm(C.blockConfirm)) { await A.blockAppt(b.dataset.ablock, true); await A.setAppt(+b.dataset.aid, 'blocked'); return R.appts(); }
+          const u = e.target.closest('[data-aunblock]'); if (u) { await A.blockAppt(u.dataset.aunblock, false); return R.appts(); }
+        } catch (x) { toast(friendly(x)); }
+      };
     },
     async avatars() {
       const P = COPY.profile, [rows, st] = await Promise.all([A.avatars(), api.settings()]);
