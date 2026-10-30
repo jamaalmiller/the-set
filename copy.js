@@ -234,6 +234,7 @@ export const COPY = {
     itemLabel: (n, t) => `Show item ${n} of ${t}`, up: 'Move up', down: 'Move down',
     cap: 'Only 5 items can show at once. Hide one first.',
     switchOn: 'The ticker is ON. Members see it at the top of The Town Square.', switchOff: 'The ticker is OFF. Members see nothing. You see a preview in The Town Square and on Home.',
+    guideline: 'Ticker items are for current events and news that affect the Black community at a society level (policy, health, economy, education, safety, civil rights). No entertainment, celebrity gossip, or low-substance content.',
     homeToggle: 'Show a small version on Home', seeAll: 'See all in The Town Square',
     turnOff: 'Turn off', turnOn: 'Turn on',
     titleLabel: 'Title (up to 120 characters)', blurbLabel: 'Short blurb (up to 300 characters)',

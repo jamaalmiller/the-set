@@ -756,7 +756,7 @@ V.admin.after = async (tab = 'requests') => {
         <button class="btn small">${esc(i.id ? c.save : c.add)}</button></form>`;
       box.innerHTML = `<h2>${esc(c.adminTitle)}</h2><div class="card"><p>${esc(st.ticker_on ? c.switchOn : c.switchOff)}</p><button class="btn ${st.ticker_on ? 'alt ' : ''}small" data-tick="${st.ticker_on ? 0 : 1}">${esc(st.ticker_on ? c.turnOff : c.turnOn)}</button>
         <label class="check"><input type="checkbox" data-thome ${st.ticker_home !== false ? 'checked' : ''}> ${esc(c.homeToggle)}</label></div>
-        <p class="small">${esc(c.adminIntro)} (${shown} of 5 showing)</p>${form()}` + (rows.length ? rows.map((i, n) => `<div class="card" data-ci="${i.id}">
+        <p class="small">${esc(c.adminIntro)} (${shown} of 5 showing)</p><p class="note">${esc(c.guideline)}</p>${form()}` + (rows.length ? rows.map((i, n) => `<div class="card" data-ci="${i.id}">
         <h2>${esc(i.title)} <span class="tag">${esc(i.published ? c.live : c.hidden)}</span></h2>${i.url ? `<p class="small">${esc(i.url)}</p>` : ''}
         <div class="row">${n ? `<button class="btn alt small" data-cmv="${n}" data-dir="-1" aria-label="${esc(c.up)}">↑</button>` : ''}${n < rows.length - 1 ? `<button class="btn alt small" data-cmv="${n}" data-dir="1" aria-label="${esc(c.down)}">↓</button>` : ''}
         <button class="btn small" data-cedit="${i.id}">${esc(c.edit)}</button>
