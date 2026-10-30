@@ -47,9 +47,10 @@ When you type a city on a listing, the box suggests cities you've already used i
 
 ## Community tab ("In the community" on Home)
 - Members' Home page shows a "What's happening" strip: the newest Porch and Town Square posts plus the newest published listings. It fills itself. The Circle rooms, Peace Table requests, contact requests, hidden posts and photos never appear there.
-- Under it, "In the community" shows up to 3 items you write in **Admin, then Community**.
-- To add one: type a title (up to 120 characters), a short blurb (up to 300), and optionally a link. Links must start with https:// and should go to the original source. Keep the tone informative, no hype. Tick **Show on Home** and tap **Add item**.
-- **Edit** changes an item, **Hide/Show** takes it off Home or puts it back, **Delete** removes it for good. Higher **Order** numbers show first, then newest. Text only, no photos.
+- Under it, **"In the community"** is a one-line ticker: it shows one item at a time and rotates every 6 seconds, with dots to jump between items. Tapping pauses it. Phones set to "reduce motion" see a plain list instead.
+- **Ticker switch:** Admin, then **Community**, top card: **Turn on / Turn off**. It starts OFF. While it's off, members see nothing, and you (admin) still see the ticker on Home with a "Preview: hidden from members" label so you can test it.
+- **Add an item:** type a title (up to 120 characters) and optionally an https:// link to the original source, leave **Show on Home** ticked, tap **Add item**. Up to 5 items can show at once.
+- **Edit**, **Hide/Show**, **Delete**, and the **↑ / ↓** arrows to change the order (top shows first). Text only, no photos. The Circle never appears here.
 
 ## Supabase dashboard tasks (supabase.com/dashboard, then open project "The Set")
 1. **Back up your data.** The free plan has no automatic backups, so do this monthly. Go to left sidebar **Table Editor**, pick a table (e.g. `profiles`, `comments`, `listings`), then the **Export** button, then **Export as CSV**.

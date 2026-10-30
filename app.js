@@ -78,12 +78,27 @@ V.home.after = async () => {
     const el = $('#happening'); if (el) el.innerHTML = items.length ? items.join('') : `<p>${esc(H.empty)}</p>`;
   } catch { const el = $('#happening'); if (el) el.innerHTML = `<p class="small">${esc(H.loadError)}</p>`; }
   try {
-    const cs = await api.community(), el = $('#community');
-    if (el && cs.length) el.innerHTML = `<h3>${esc(C.title)}</h3>` + cs.map(i => { const u = safeHttps(i.url);
-      return `<div class="hap-item"><span class="tag">${esc(C.tag)}</span><p><strong>${esc(i.title)}</strong></p>${i.blurb ? `<p>${esc(i.blurb)}</p>` : ''}
-        ${u ? `<p><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(C.readMore)} ↗</a></p>` : ''}</div>`; }).join('');
+    const [cs, st] = await Promise.all([api.community(), api.settings()]), el = $('#community');
+    if (el && cs.length && (st.ticker_on || isAdmin())) mountTicker(el, cs, !st.ticker_on);
   } catch { /* community block is optional */ }
 };
+
+// Ticker: one item at a time, rotates every 6s, pauses on tap/hover; plain list if reduced motion. Text only.
+const previewTag = () => `<span class="tag warn">${esc(COPY.preview)}</span>`;
+function mountTicker(el, items, preview) {
+  const C = COPY.community, still = matchMedia('(prefers-reduced-motion: reduce)').matches || items.length === 1;
+  const one = i => { const u = safeHttps(i.url); return u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(i.title)} ↗</a>` : esc(i.title); };
+  el.innerHTML = `<h3>${esc(C.title)} ${preview ? previewTag() : ''}</h3>` + (still ? `<ul class="ticklist">${items.map(i => `<li>${one(i)}</li>`).join('')}</ul>` :
+    `<div class="ticker" aria-live="off"><p class="tickline"></p><div class="dots">${items.map((_, n) => `<button type="button" class="dot" data-t="${n}" aria-label="${esc(C.itemLabel(n + 1, items.length))}"></button>`).join('')}</div></div>`);
+  if (still) return;
+  let k = 0, paused = false; const box = el.querySelector('.ticker');
+  const show = n => { k = (n + items.length) % items.length; box.querySelector('.tickline').innerHTML = one(items[k]);
+    box.querySelectorAll('.dot').forEach((d, j) => d.setAttribute('aria-current', j === k ? 'true' : 'false')); };
+  show(0);
+  const t = setInterval(() => { if (!paused && document.body.contains(box)) show(k + 1); }, 6000); S.cleanup.push(() => clearInterval(t));
+  box.addEventListener('mouseenter', () => (paused = true)); box.addEventListener('mouseleave', () => (paused = false));
+  box.addEventListener('click', e => { const d = e.target.closest('[data-t]'); paused = true; if (d) show(+d.dataset.t); });
+}
 
 V.about = () => `<h1>About The Set</h1>${COPY.about.map(p => `<p>${esc(p)}</p>`).join('')}`;
 V.guidelines = () => `<h1>Guidelines</h1>${guidelinesHtml()}`;
@@ -590,29 +605,34 @@ V.admin.after = async (tab = 'requests') => {
       };
     },
     async community() {
-      const c = COPY.community, rows = await A.communityAll();
+      const c = COPY.community, [rows, st] = await Promise.all([A.communityAll(), api.settings()]), shown = rows.filter(r => r.published).length;
       const form = (i = {}) => `<form class="card form" data-cform="${i.id || ''}"><label>${esc(c.titleLabel)}<input name="title" maxlength="120" required value="${esc(i.title || '')}"></label>
-        <label>${esc(c.blurbLabel)}<textarea name="blurb" maxlength="300" rows="3">${esc(i.blurb || '')}</textarea></label>
         <label>${esc(c.urlLabel)}<input name="url" type="url" inputmode="url" placeholder="https://" pattern="https://.+" value="${esc(i.url || '')}"></label><p class="small">${esc(c.urlHint)}</p>
-        <label>${esc(c.sortLabel)}<input name="sort" type="number" value="${i.sort ?? 0}"></label>
-        <label class="check"><input type="checkbox" name="published" ${i.published ? 'checked' : ''}> ${esc(c.publishLabel)}</label>
+        <label class="check"><input type="checkbox" name="published" ${i.id ? (i.published ? 'checked' : '') : 'checked'}> ${esc(c.publishLabel)}</label>
         <button class="btn small">${esc(i.id ? c.save : c.add)}</button></form>`;
-      box.innerHTML = `<h2>${esc(c.adminTitle)}</h2><p class="small">${esc(c.adminIntro)}</p>${form()}` + (rows.length ? rows.map(i => `<div class="card" data-ci="${i.id}">
-        <h2>${esc(i.title)} <span class="tag">${esc(i.published ? c.live : c.hidden)}</span></h2>${i.blurb ? `<p>${esc(i.blurb)}</p>` : ''}${i.url ? `<p class="small">${esc(i.url)}</p>` : ''}
-        <p class="small">${when(i.created_at)} · ${esc(c.sortLabel)} ${i.sort}</p><div class="row"><button class="btn small" data-cedit="${i.id}">${esc(c.edit)}</button>
+      box.innerHTML = `<h2>${esc(c.adminTitle)}</h2><div class="card"><p>${esc(st.ticker_on ? c.switchOn : c.switchOff)}</p><button class="btn ${st.ticker_on ? 'alt ' : ''}small" data-tick="${st.ticker_on ? 0 : 1}">${esc(st.ticker_on ? c.turnOff : c.turnOn)}</button></div>
+        <p class="small">${esc(c.adminIntro)} (${shown} of 5 showing)</p>${form()}` + (rows.length ? rows.map((i, n) => `<div class="card" data-ci="${i.id}">
+        <h2>${esc(i.title)} <span class="tag">${esc(i.published ? c.live : c.hidden)}</span></h2>${i.url ? `<p class="small">${esc(i.url)}</p>` : ''}
+        <div class="row">${n ? `<button class="btn alt small" data-cmv="${n}" data-dir="-1" aria-label="${esc(c.up)}">↑</button>` : ''}${n < rows.length - 1 ? `<button class="btn alt small" data-cmv="${n}" data-dir="1" aria-label="${esc(c.down)}">↓</button>` : ''}
+        <button class="btn small" data-cedit="${i.id}">${esc(c.edit)}</button>
         <button class="btn alt small" data-ctog="${i.id}">${esc(i.published ? c.hide : c.show)}</button><button class="btn alt small" data-cdel="${i.id}">${esc(c.del)}</button></div><div class="slot"></div></div>`).join('') : `<p>${esc(c.none)}</p>`);
       const byId = id => rows.find(r => r.id === +id);
       box.onsubmit = async e => { const f = e.target.closest('[data-cform]'); if (!f) return; e.preventDefault();
         const d = Object.fromEntries(new FormData(f)), url = (d.url || '').trim();
         if (url && !/^https:\/\/[^\s<>"]+$/.test(url)) return toast(friendly('BAD_URL'));
-        const it = { title: d.title.trim(), blurb: d.blurb.trim() || null, url: url || null, sort: parseInt(d.sort, 10) || 0, published: !!d.published };
-        if (f.dataset.cform) it.id = +f.dataset.cform;
+        const it = { title: d.title.trim(), url: url || null, published: !!d.published };
+        if (f.dataset.cform) it.id = +f.dataset.cform; else it.sort = (rows[0]?.sort ?? 0) + 1;
+        if (it.published && !byId(it.id)?.published && shown >= 5) return toast(c.cap);
         try { await A.saveCommunity(it); toast('Saved.'); R.community(); } catch (x) { toast(friendly(x)); } };
       box.onclick = async e => {
         const ed = e.target.closest('[data-cedit]'), tg = e.target.closest('[data-ctog]'), dl = e.target.closest('[data-cdel]'), yes = e.target.closest('[data-cdelyes]'), no = e.target.closest('[data-cdelno]');
+        const mv = e.target.closest('[data-cmv]'), sw = e.target.closest('[data-tick]');
         try {
+          if (sw) { await A.setSetting('ticker_on', sw.dataset.tick === '1'); R.community(); }
+          if (mv) { const n = +mv.dataset.cmv, m = n + +mv.dataset.dir, list = rows.slice(); [list[n], list[m]] = [list[m], list[n]];
+            for (let j = 0; j < list.length; j++) { const want = list.length - j; if (list[j].sort !== want) await A.saveCommunity({ id: list[j].id, sort: want }); } R.community(); }
           if (ed) ed.closest('.card').querySelector('.slot').innerHTML = form(byId(ed.dataset.cedit));
-          if (tg) { const i = byId(tg.dataset.ctog); await A.saveCommunity({ id: i.id, published: !i.published }); R.community(); }
+          if (tg) { const i = byId(tg.dataset.ctog); if (!i.published && shown >= 5) return toast(c.cap); await A.saveCommunity({ id: i.id, published: !i.published }); R.community(); }
           if (dl) dl.closest('.card').querySelector('.slot').innerHTML = `<p>${esc(c.delConfirm)}</p><div class="row"><button class="btn small" data-cdelyes="${dl.dataset.cdel}">${esc(c.del)}</button><button class="btn alt small" data-cdelno>Cancel</button></div>`;
           if (no) no.closest('.slot').innerHTML = '';
           if (yes) { await A.deleteCommunity(+yes.dataset.cdelyes); toast('Deleted.'); R.community(); }

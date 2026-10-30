@@ -119,7 +119,8 @@ async function supabaseBackend() {
         .map(x => ({ id: x.id, topic_id: x.topic_id, kind: x.topics.kind, topic: x.topics.title, author_name: x.author_name, body: x.body, created_at: x.created_at }));
       return { posts, listings: chk(l) };
     },
-    async community() { return chk(await sb.from('community_items').select('*').eq('published', true).order('sort', { ascending: false }).order('created_at', { ascending: false }).limit(3)); },
+    async community() { return chk(await sb.from('community_items').select('*').eq('published', true).order('sort', { ascending: false }).order('created_at', { ascending: false }).limit(5)); },
+    async settings() { return chk(await sb.from('site_settings').select('*').maybeSingle()) || {}; },
     async topics(kind) { return chk(await sb.from('topics').select('*').eq('kind', kind).order('created_at', { ascending: false })); },
     async topic(id) { return chk(await sb.from('topics').select('*').eq('id', id).maybeSingle()); },
     async comments(topicId) {
@@ -194,6 +195,7 @@ async function supabaseBackend() {
       async members() { return chk(await sb.from('profiles').select('*').order('created_at', { ascending: false })); },
       async setMember(id, status) { chk(await sb.from('profiles').update({ status }).eq('id', id)); },
       async resetName(id) { chk(await sb.rpc('admin_reset_name', { p_member: id })); },
+      async setSetting(k, v) { chk(await sb.from('site_settings').update({ [k]: v }).eq('id', true)); },
       async communityAll() { return chk(await sb.from('community_items').select('*').order('sort', { ascending: false }).order('created_at', { ascending: false })); },
       async saveCommunity(it) { const { id, ...rest } = it; if (id) chk(await sb.from('community_items').update(rest).eq('id', id)); else chk(await sb.from('community_items').insert(rest)); },
       async deleteCommunity(id) { chk(await sb.from('community_items').delete().eq('id', id)); },
@@ -314,7 +316,8 @@ function demoBackend() {
       const listings = db.listings.filter(l => l.published).slice().reverse().slice(0, 3);
       return { posts, listings };
     },
-    async community() { need(me(), 'NOT_MEMBER'); return (db.community ||= []).filter(i => i.published).sort((a, b) => (b.sort - a.sort) || (a.created_at < b.created_at ? 1 : -1)).slice(0, 3); },
+    async community() { need(me(), 'NOT_MEMBER'); return (db.community ||= []).filter(i => i.published).sort((a, b) => (b.sort - a.sort) || (a.created_at < b.created_at ? 1 : -1)).slice(0, 5); },
+    async settings() { return db.settings ||= {}; },
     async topics(kind) { need(me(), 'NOT_MEMBER'); return db.topics.filter(t => t.kind === kind).slice().reverse(); },
     async topic(tid) { need(me(), 'NOT_MEMBER'); return db.topics.find(t => t.id === tid) || null; },
     async comments(tid) { return db.comments.filter(c => c.topic_id === tid && (isAdmin() || (!c.hidden && !c.removed && !c.deleted_at))); },
@@ -374,6 +377,7 @@ function demoBackend() {
       async members() { return db.profiles; },
       async setMember(mid, status) { db.profiles.find(p => p.id === mid).status = status; save(); },
       async resetName(mid) { db.profiles.find(p => p.id === mid).display_name = 'Member'; db.comments.forEach(c => { if (c.user_id === mid) c.author_name = 'Member'; }); save(); },
+      async setSetting(k, v) { (db.settings ||= {})[k] = v; save(); },
       async communityAll() { return (db.community ||= []).slice().sort((a, b) => (b.sort - a.sort) || (a.created_at < b.created_at ? 1 : -1)); },
       async saveCommunity(it) { db.community ||= []; if (it.url && !/^https:\/\/[^\s<>"]+$/.test(it.url)) throw new Error('BAD_URL');
         if (it.id) Object.assign(db.community.find(x => x.id === it.id), it); else db.community.push({ sort: 0, ...it, id: id(), created_at: now() }); save(); },

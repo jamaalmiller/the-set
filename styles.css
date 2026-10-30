@@ -81,3 +81,7 @@ a.card.block.corner { border-left-color:var(--ok); background:#f2f8f3; } .note.s
 .tbody { white-space:pre-line; }
 .linkbtn.like { text-decoration:none; } .linkbtn.like.on { font-weight:700; }
 .countbadge { display:inline-block; min-width:1.3em; padding:0 .35em; border-radius:999px; background:#c0392b; color:#fff; font-size:.75em; font-weight:700; text-align:center; line-height:1.3em; }
+/* Ticker */
+.ticker .tickline { margin:6px 0; min-height:1.5em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ticker .dots { display:flex; gap:6px; } .ticker .dot { width:12px; height:12px; padding:0; border-radius:50%; border:1px solid var(--ink); background:transparent; cursor:pointer; }
+.ticker .dot[aria-current="true"] { background:var(--ink); } .ticklist { margin:6px 0; padding-left:1.2em; }
