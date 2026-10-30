@@ -814,3 +814,143 @@ grant execute on function admin_reset_name(uuid) to authenticated;
 -- 012: Home ticker. "In the community" rotates one item at a time. Admin on/off switch for the whole ticker.
 -- Items stay in community_items (title, optional https link, on/off per item). Home shows up to 5.
 alter table site_settings add column if not exists ticker_on boolean not null default false;
+
+-- 013: member profile pictures (private bucket, admin approval). Switch profiles_on defaults OFF; admins can always preview.
+alter table site_settings add column if not exists profiles_on boolean not null default false;
+alter table profiles add column if not exists avatar_path text;
+alter table profiles add column if not exists avatar_status text not null default 'none';
+do $$ begin alter table profiles add constraint profiles_avatar_status check (avatar_status in ('none','pending','approved','rejected')); exception when duplicate_object then null; end $$;
+grant select (avatar_path, avatar_status) on profiles to authenticated;
+
+create table if not exists avatar_uploads (
+  id bigint generated always as identity primary key,
+  member_id uuid not null references profiles(id) on delete cascade,
+  created_at timestamptz not null default now());
+create index if not exists avatar_uploads_member on avatar_uploads(member_id, created_at);
+alter table avatar_uploads enable row level security; -- no policies: only the functions below touch it
+
+create or replace function profiles_feature_on() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select profiles_on from site_settings limit 1), false) or is_admin();
+$$;
+create or replace function avatar_uploads_left() returns int
+language sql stable security definer set search_path = public as $$
+  select greatest(0, 3 - (select count(*) from avatar_uploads where member_id = auth.uid() and created_at > now() - interval '24 hours'))::int;
+$$;
+revoke all on function profiles_feature_on() from public, anon;
+revoke all on function avatar_uploads_left() from public, anon;
+grant execute on function profiles_feature_on(), avatar_uploads_left() to authenticated;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', false, 153600, array['image/jpeg'])
+on conflict (id) do update set public = false, file_size_limit = 153600, allowed_mime_types = array['image/jpeg'];
+
+drop policy if exists avatars_insert on storage.objects;
+create policy avatars_insert on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and is_active_member() and profiles_feature_on() and avatar_uploads_left() > 0
+              and (storage.foldername(name))[1] = (select auth.uid())::text
+              and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}\.jpg$');
+create or replace function avatar_is_shown(p_name text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select is_member() and profiles_feature_on() and exists (select 1 from profiles p where p.avatar_path = p_name and p.avatar_status = 'approved' and p.status <> 'removed');
+$$;
+revoke all on function avatar_is_shown(text) from public, anon;
+grant execute on function avatar_is_shown(text) to authenticated;
+drop policy if exists avatars_read on storage.objects;
+create policy avatars_read on storage.objects for select to authenticated
+  using (bucket_id = 'avatars' and (is_admin() or (storage.foldername(name))[1] = (select auth.uid())::text or avatar_is_shown(name)));
+drop policy if exists avatars_delete on storage.objects;
+create policy avatars_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'avatars' and ((storage.foldername(name))[1] = (select auth.uid())::text or is_admin()));
+
+-- Member sets their freshly uploaded photo; it waits for the admin. Returns the old path so the app can delete that file.
+create or replace function set_my_avatar(p_path text) returns text
+language plpgsql security definer set search_path = public as $$
+declare old text;
+begin
+  if not is_active_member() then raise exception 'NOT_MEMBER'; end if;
+  if not profiles_feature_on() then raise exception 'PROFILES_OFF'; end if;
+  if p_path is null or p_path !~ ('^' || auth.uid()::text || '/[0-9a-f-]{36}\.jpg$')
+     or not exists (select 1 from storage.objects where bucket_id = 'avatars' and name = p_path) then raise exception 'BAD_PHOTO'; end if;
+  if avatar_uploads_left() <= 0 then raise exception 'AVATAR_LIMIT'; end if;
+  insert into avatar_uploads(member_id) values (auth.uid());
+  select avatar_path into old from profiles where id = auth.uid();
+  update profiles set avatar_path = p_path, avatar_status = 'pending' where id = auth.uid();
+  return nullif(old, p_path);
+end $$;
+create or replace function remove_my_avatar() returns text
+language plpgsql security definer set search_path = public as $$
+declare old text;
+begin
+  if not is_member() then raise exception 'NOT_MEMBER'; end if;
+  select avatar_path into old from profiles where id = auth.uid();
+  update profiles set avatar_path = null, avatar_status = 'none' where id = auth.uid();
+  return old;
+end $$;
+create or replace function admin_review_avatar(p_member uuid, p_ok boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_admin() then raise exception 'NOT_ADMIN'; end if;
+  update profiles set avatar_status = case when p_ok then 'approved' else 'rejected' end where id = p_member and avatar_path is not null;
+end $$;
+-- Approved photo paths for a set of members (Porch / Town Square). Empty while the switch is off (admins excepted).
+create or replace function avatar_paths(p_ids uuid[]) returns table(id uuid, path text)
+language sql stable security definer set search_path = public as $$
+  select p.id, p.avatar_path from profiles p
+  where is_member() and profiles_feature_on() and p.id = any(p_ids) and p.avatar_status = 'approved' and p.avatar_path is not null and p.status <> 'removed';
+$$;
+revoke all on function set_my_avatar(text), remove_my_avatar(), admin_review_avatar(uuid, boolean), avatar_paths(uuid[]) from public, anon;
+grant execute on function set_my_avatar(text), remove_my_avatar(), admin_review_avatar(uuid, boolean), avatar_paths(uuid[]) to authenticated;
+
+-- 014: short profile card (bio + city). Gated by profiles_on (013); admins can always preview.
+alter table profiles add column if not exists bio text;
+alter table profiles add column if not exists city text;
+do $$ begin alter table profiles add constraint profiles_bio_len check (char_length(bio) <= 160); exception when duplicate_object then null; end $$;
+do $$ begin alter table profiles add constraint profiles_city_len check (char_length(city) <= 60); exception when duplicate_object then null; end $$;
+grant select (bio, city) on profiles to authenticated;
+
+create or replace function card_has_contact(t text) returns boolean
+language sql immutable set search_path = public as $$
+  select coalesce(t, '') ~* '(@|https?:|www\.|<img|!\[|\.(com|net|org|io|co|us|ly|me|app|gg|tv|info|biz|xyz|link)(\y|/))'
+      or regexp_replace(coalesce(t, ''), '[^0-9]', '', 'g') ~ '[0-9]{7,}';
+$$;
+
+create or replace function set_my_card(p_bio text, p_city text) returns void
+language plpgsql security definer set search_path = public as $$
+declare b text := nullif(btrim(regexp_replace(coalesce(p_bio, ''), '\s+', ' ', 'g')), '');
+        c text := nullif(btrim(regexp_replace(coalesce(p_city, ''), '\s+', ' ', 'g')), '');
+begin
+  if not is_active_member() then raise exception 'NOT_MEMBER'; end if;
+  if not profiles_feature_on() then raise exception 'PROFILES_OFF'; end if;
+  if char_length(b) > 160 then raise exception 'BIO_LENGTH'; end if;
+  if char_length(c) > 60 then raise exception 'CITY_FORMAT'; end if;
+  if card_has_contact(b) or card_has_contact(c) then raise exception 'CARD_CONTACT'; end if;
+  if c is not null and lower(c) <> 'online' and c !~ '^[A-Za-z][A-Za-z .''-]*, ?[A-Za-z]{2}$' then raise exception 'CITY_FORMAT'; end if;
+  if lower(c) = 'online' then c := 'Online'; end if;
+  update profiles set bio = b, city = c where id = auth.uid();
+end $$;
+
+-- Card for one member, opened from The Porch or Town Square only (never The Circle). No email, ever.
+create or replace function profile_card(p_member uuid, p_topic_id bigint) returns table(id uuid, display_name text, bio text, city text, avatar_path text)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not is_member() then raise exception 'NOT_MEMBER'; end if;
+  if not profiles_feature_on() then raise exception 'PROFILES_OFF'; end if;
+  if p_topic_id is null or not exists (select 1 from topics t where t.id = p_topic_id and t.grp is null and t.kind in ('porch','square')) then raise exception 'BAD_TARGET'; end if;
+  return query select p.id, p.display_name, p.bio, p.city, case when p.avatar_status = 'approved' then p.avatar_path end
+    from profiles p where p.id = p_member and p.status <> 'removed';
+end $$;
+
+create or replace function admin_clear_profile(p_member uuid, p_what text) returns text
+language plpgsql security definer set search_path = public as $$
+declare old text;
+begin
+  if not is_admin() then raise exception 'NOT_ADMIN'; end if;
+  if p_what = 'bio' then update profiles set bio = null where id = p_member;
+  elsif p_what = 'city' then update profiles set city = null where id = p_member;
+  elsif p_what = 'photo' then select avatar_path into old from profiles where id = p_member; update profiles set avatar_path = null, avatar_status = 'none' where id = p_member;
+  else raise exception 'BAD_TARGET'; end if;
+  return old;
+end $$;
+revoke all on function card_has_contact(text), set_my_card(text, text), profile_card(uuid, bigint), admin_clear_profile(uuid, text) from public, anon;
+grant execute on function card_has_contact(text), set_my_card(text, text), profile_card(uuid, bigint), admin_clear_profile(uuid, text) to authenticated;

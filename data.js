@@ -1,5 +1,6 @@
 // Data layer: one set of functions, two backends (Supabase or local DEMO).
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { COPY } from './copy.js';
 
 export const DEMO = !/^https:\/\//.test(SUPABASE_URL) || SUPABASE_ANON_KEY.startsWith('PASTE_');
 export const LINK_RE = /(https?:\/\/|www\.|\.(com|net|org|io|co|us|ly|me|app|gg|tv|info|biz)(\b|\/)|<img|!\[)/i;
@@ -35,6 +36,7 @@ const FRIENDLY = {
 };
 export function friendly(err) {
   const m = String(err?.message || err || '');
+  for (const [k, v] of Object.entries(COPY.errors || {})) if (m.includes(k)) return v;
   for (const k of Object.keys(FRIENDLY)) if (m.includes(k)) return FRIENDLY[k];
   if (/community_items_url/.test(m)) return FRIENDLY.BAD_URL;
   if (/duplicate key|unique/i.test(m)) return 'You already did that.';
@@ -67,6 +69,25 @@ export async function shrinkPhoto(file) {
   for (const q of [0.8, 0.65, 0.5]) {
     const b = await new Promise(ok => c.toBlob(ok, 'image/jpeg', q));
     if (b && b.size <= PHOTO_MAX) return b;
+  }
+  throw new Error('PHOTO_BIG');
+}
+
+// Profile picture: center-cropped square, 400px max, JPEG under 150 KB. HEIC works where the browser can open it (iPhone Safari).
+export const AVATAR_TYPES = [...PHOTO_TYPES, 'image/heic', 'image/heif'];
+export const AVATAR_MAX = 150 * 1024;
+export async function shrinkAvatar(file) {
+  if (!file || !(AVATAR_TYPES.includes(file.type) || /\.(heic|heif)$/i.test(file.name || ''))) throw new Error('PHOTO_TYPE');
+  let img;
+  try { img = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch { img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('PHOTO_TYPE')); i.src = URL.createObjectURL(file); }); }
+  const side = Math.min(img.width, img.height), out = Math.min(400, side);
+  const c = document.createElement('canvas'); c.width = c.height = out;
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, out, out);
+  g.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, out, out); img.close?.();
+  for (const q of [0.82, 0.7, 0.55, 0.4]) {
+    const b = await new Promise(ok => c.toBlob(ok, 'image/jpeg', q));
+    if (b && b.size <= AVATAR_MAX) return b;
   }
   throw new Error('PHOTO_BIG');
 }
@@ -144,6 +165,26 @@ async function supabaseBackend() {
       }
       return Object.fromEntries(paths.map(p => [p, urlCache.get(p)?.url]).filter(([, u]) => u));
     },
+    // Profile cards and pictures (feature switch: site_settings.profiles_on; admins always pass).
+    async uploadAvatar(blob) {
+      const path = `${profile.id}/${crypto.randomUUID()}.jpg`;
+      chk(await sb.storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' }));
+      const { data: old, error } = await sb.rpc('set_my_avatar', { p_path: path });
+      if (error) { await sb.storage.from('avatars').remove([path]); throw error; }
+      if (old) await sb.storage.from('avatars').remove([old]);
+    },
+    async removeAvatar() { const old = chk(await sb.rpc('remove_my_avatar')); if (old) await sb.storage.from('avatars').remove([old]); },
+    async setCard(bio, city) { chk(await sb.rpc('set_my_card', { p_bio: bio, p_city: city })); },
+    async card(member, topicId) { return (chk(await sb.rpc('profile_card', { p_member: member, p_topic_id: topicId })) || [])[0] || null; },
+    async avatarPaths(ids) { if (!ids.length) return {}; return Object.fromEntries((chk(await sb.rpc('avatar_paths', { p_ids: [...new Set(ids)] })) || []).map(r => [r.id, r.path])); },
+    async avatarUrls(paths) {
+      const now = Date.now(), need = [...new Set(paths)].filter(p => p && !(urlCache.get('a:' + p)?.exp > now));
+      if (need.length) {
+        const { data } = await sb.storage.from('avatars').createSignedUrls(need, 3600);
+        (data || []).forEach(d => d.signedUrl && urlCache.set('a:' + d.path, { url: d.signedUrl, exp: now + 50 * 60e3 }));
+      }
+      return Object.fromEntries(paths.map(p => [p, urlCache.get('a:' + p)?.url]).filter(([, u]) => u));
+    },
     async flag(comment_id) { chk(await sb.from('reports').insert({ comment_id })); },
     async likeCounts(topicId) { return chk(await sb.rpc('like_counts', { p_topic: topicId })) || []; },
     async like(id, on) { chk(on ? await sb.from('likes').insert({ comment_id: id }) : await sb.from('likes').delete().eq('comment_id', id).eq('member_id', profile.id)); },
@@ -196,6 +237,9 @@ async function supabaseBackend() {
       async setMember(id, status) { chk(await sb.from('profiles').update({ status }).eq('id', id)); },
       async resetName(id) { chk(await sb.rpc('admin_reset_name', { p_member: id })); },
       async setSetting(k, v) { chk(await sb.from('site_settings').update({ [k]: v }).eq('id', true)); },
+      async avatars() { return chk(await sb.from('profiles').select('id, display_name, avatar_path, avatar_status').not('avatar_path', 'is', null).order('avatar_status')); },
+      async reviewAvatar(id, ok) { chk(await sb.rpc('admin_review_avatar', { p_member: id, p_ok: ok })); },
+      async clearProfile(id, what) { const old = chk(await sb.rpc('admin_clear_profile', { p_member: id, p_what: what })); if (old) await sb.storage.from('avatars').remove([old]); },
       async communityAll() { return chk(await sb.from('community_items').select('*').order('sort', { ascending: false }).order('created_at', { ascending: false })); },
       async saveCommunity(it) { const { id, ...rest } = it; if (id) chk(await sb.from('community_items').update(rest).eq('id', id)); else chk(await sb.from('community_items').insert(rest)); },
       async deleteCommunity(id) { chk(await sb.from('community_items').delete().eq('id', id)); },
@@ -318,6 +362,13 @@ function demoBackend() {
     },
     async community() { need(me(), 'NOT_MEMBER'); return (db.community ||= []).filter(i => i.published).sort((a, b) => (b.sort - a.sort) || (a.created_at < b.created_at ? 1 : -1)).slice(0, 5); },
     async settings() { return db.settings ||= {}; },
+    async uploadAvatar(blob) { const p = me(); need(p, 'NOT_MEMBER'); const k = 'av-' + id(); demoPhotos.set(k, URL.createObjectURL(blob)); p.avatar_path = k; p.avatar_status = 'pending'; save(); },
+    async removeAvatar() { const p = me(); if (p) { p.avatar_path = null; p.avatar_status = 'none'; save(); } },
+    async setCard(bio, city) { const p = me(); need(p, 'NOT_MEMBER'); need((bio || '').length <= 160, 'BIO_LENGTH'); need(!LINK_RE.test(bio || '') && !/@|\d{7,}/.test((bio || '').replace(/[\s().-]/g, '')), 'CARD_CONTACT');
+      need(!city || /^online$/i.test(city.trim()) || /^[A-Za-z][A-Za-z .'-]*, ?[A-Za-z]{2}$/.test(city.trim()), 'CITY_FORMAT'); p.bio = bio?.trim() || null; p.city = city?.trim() || null; save(); },
+    async card(mid) { const p = db.profiles.find(x => x.id === mid); return p ? { id: p.id, display_name: p.display_name, bio: p.bio, city: p.city, avatar_path: p.avatar_status === 'approved' ? p.avatar_path : null } : null; },
+    async avatarPaths(ids) { return Object.fromEntries(db.profiles.filter(p => ids.includes(p.id) && p.avatar_status === 'approved' && p.avatar_path).map(p => [p.id, p.avatar_path])); },
+    async avatarUrls(paths) { return Object.fromEntries(paths.map(p => [p, demoPhotos.get(p)]).filter(([, u]) => u)); },
     async topics(kind) { need(me(), 'NOT_MEMBER'); return db.topics.filter(t => t.kind === kind).slice().reverse(); },
     async topic(tid) { need(me(), 'NOT_MEMBER'); return db.topics.find(t => t.id === tid) || null; },
     async comments(tid) { return db.comments.filter(c => c.topic_id === tid && (isAdmin() || (!c.hidden && !c.removed && !c.deleted_at))); },
@@ -378,6 +429,9 @@ function demoBackend() {
       async setMember(mid, status) { db.profiles.find(p => p.id === mid).status = status; save(); },
       async resetName(mid) { db.profiles.find(p => p.id === mid).display_name = 'Member'; db.comments.forEach(c => { if (c.user_id === mid) c.author_name = 'Member'; }); save(); },
       async setSetting(k, v) { (db.settings ||= {})[k] = v; save(); },
+      async avatars() { return db.profiles.filter(p => p.avatar_path); },
+      async reviewAvatar(mid, ok) { const p = db.profiles.find(x => x.id === mid); if (p) { p.avatar_status = ok ? 'approved' : 'rejected'; save(); } },
+      async clearProfile(mid, what) { const p = db.profiles.find(x => x.id === mid); if (!p) return; if (what === 'photo') { p.avatar_path = null; p.avatar_status = 'none'; } else p[what] = null; save(); },
       async communityAll() { return (db.community ||= []).slice().sort((a, b) => (b.sort - a.sort) || (a.created_at < b.created_at ? 1 : -1)); },
       async saveCommunity(it) { db.community ||= []; if (it.url && !/^https:\/\/[^\s<>"]+$/.test(it.url)) throw new Error('BAD_URL');
         if (it.id) Object.assign(db.community.find(x => x.id === it.id), it); else db.community.push({ sort: 0, ...it, id: id(), created_at: now() }); save(); },

@@ -85,3 +85,10 @@ a.card.block.corner { border-left-color:var(--ok); background:#f2f8f3; } .note.s
 .ticker .tickline { margin:6px 0; min-height:1.5em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ticker .dots { display:flex; gap:6px; } .ticker .dot { width:12px; height:12px; padding:0; border-radius:50%; border:1px solid var(--ink); background:transparent; cursor:pointer; }
 .ticker .dot[aria-current="true"] { background:var(--ink); } .ticklist { margin:6px 0; padding-left:1.2em; }
+/* Profile cards + photos */
+.avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;object-fit:cover;background:#e8e2d6;color:#333;font-weight:700;flex:none;vertical-align:middle}
+.avatar.sm{width:24px;height:24px;font-size:.65rem;margin-right:.35rem}
+.avatar.big{width:72px;height:72px;font-size:1.4rem;margin-right:.75rem}
+.linkbtn.who{display:inline-flex;align-items:center;padding:0;text-decoration:none}
+.profilecard .row{align-items:center}
+.avatarnow{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}

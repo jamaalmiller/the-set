@@ -1,4 +1,4 @@
-import { api, DEMO, LINK_RE, friendly, shrinkPhoto, PHOTO_TYPES } from './data.js';
+import { api, DEMO, LINK_RE, friendly, shrinkPhoto, PHOTO_TYPES, shrinkAvatar, AVATAR_TYPES } from './data.js';
 import { COPY } from './copy.js';
 import { SHOW_PRESENCE } from './config.js';
 
@@ -112,11 +112,42 @@ V.profile = () => `<h1>Your profile</h1><form id="nameform" class="card form">
   <label>Your name (what members see)<input name="name" required minlength="2" maxlength="30" value="${esc(S.profile?.display_name)}" autocomplete="nickname"></label>
   <p class="small">2 to 30 characters. No links, emails, @ or phone numbers. You can change it 3 times a day.</p>
   <button class="btn">Save</button><p class="error" role="alert" hidden></p></form>`;
-V.profile.after = () => $('#nameform').onsubmit = async e => {
-  e.preventDefault(); const err = e.target.querySelector('.error'); err.hidden = true; const btn = e.target.querySelector('button'); btn.disabled = true;
-  try { const n = await api.setName(e.target.name.value); await refreshSession(); e.target.name.value = n; toast('Saved. Members now see you as ' + n + '.'); }
-  catch (x) { err.textContent = friendly(x); err.hidden = false; } finally { btn.disabled = false; }
+V.profile.after = async () => {
+  $('#nameform').onsubmit = async e => {
+    e.preventDefault(); const err = e.target.querySelector('.error'); err.hidden = true; const btn = e.target.querySelector('button'); btn.disabled = true;
+    try { const n = await api.setName(e.target.name.value); await refreshSession(); e.target.name.value = n; toast('Saved. Members now see you as ' + n + '.'); }
+    catch (x) { err.textContent = friendly(x); err.hidden = false; } finally { btn.disabled = false; }
+  };
+  $('#cardform')?.remove();
+  const st = await api.settings().catch(() => ({}));
+  if (!st.profiles_on && !isAdmin()) return; // feature switch: hidden from members until the admin turns it on
+  const P = COPY.profile, me = S.profile;
+  const paint = async () => {
+    const line = { pending: P.photoPending, approved: P.photoApproved, rejected: P.photoRejected }[me.avatar_status] || P.photoNone;
+    let url = null; if (me.avatar_path) url = (await api.avatarUrls([me.avatar_path]).catch(() => ({})))[me.avatar_path];
+    $('#avatarnow').innerHTML = `${url ? `<img class="avatar big" src="${esc(url)}" alt="${esc(P.cardAlt(me.display_name))}">` : initialsHtml(me.display_name, 'big')}
+      <p class="small">${esc(line)}</p>${me.avatar_path ? `<button type="button" class="linkbtn" id="avremove">${esc(P.photoRemove)}</button>` : ''}`;
+    $('#avremove')?.addEventListener('click', async () => { if (!confirm(P.photoRemoveConfirm)) return;
+      try { await api.removeAvatar(); await refreshSession(); toast(P.photoRemoved); V.profile.after(); } catch (x) { toast(friendly(x)); } });
+  };
+  $('#nameform').insertAdjacentHTML('afterend', `<form id="cardform" class="card form"><h2>${esc(P.cardTitle)} ${st.profiles_on ? '' : previewTag()}</h2><p class="small">${esc(P.cardIntro)}</p>
+    <p><strong>${esc(P.photoLabel)}</strong></p><div id="avatarnow" class="avatarnow"></div>
+    <label class="btn alt small">${esc(P.photoAdd)}<input type="file" id="avpick" accept="${AVATAR_TYPES.join(',')},.heic,.heif" hidden></label>
+    <p class="small">${esc(P.photoRule)}</p>
+    <label>${esc(P.bioLabel)}<textarea name="bio" maxlength="160" rows="3">${esc(me.bio || '')}</textarea></label><p class="small" id="biocount" aria-live="polite">${esc(P.counter((me.bio || '').length))}</p>
+    <label>${esc(P.cityLabel)}<input name="city" maxlength="60" value="${esc(me.city || '')}"></label><p class="small">${esc(P.cityHint)} ${esc(P.cardRule)}</p>
+    <button class="btn">${esc(P.save)}</button><p class="error" role="alert" hidden></p></form>`);
+  const f = $('#cardform');
+  f.bio.addEventListener('input', () => { $('#biocount').textContent = P.counter(f.bio.value.length); });
+  $('#avpick').addEventListener('change', async e => { const file = e.target.files[0]; if (!file) return;
+    try { const b = await shrinkAvatar(file); await api.uploadAvatar(b); await refreshSession(); toast(P.photoSent); V.profile.after(); } catch (x) { toast(friendly(x)); } });
+  f.onsubmit = async e => { e.preventDefault(); const err = f.querySelector('.error'); err.hidden = true;
+    const bio = f.bio.value.trim(), city = f.city.value.trim();
+    if (LINK_RE.test(bio) || /@/.test(bio + city)) { err.textContent = friendly('CARD_CONTACT'); err.hidden = false; return; }
+    try { await api.setCard(bio, city); await refreshSession(); toast(P.saved); } catch (x) { err.textContent = friendly(x); err.hidden = false; } };
+  await paint();
 };
+const initialsHtml = (name, cls = '') => `<span class="avatar initials ${cls}" aria-hidden="true">${esc((name || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase())}</span>`;
 
 V.code = () => {
   const signedInNoProfile = S.user && !S.profile;
@@ -307,13 +338,38 @@ function commentHtml(c, replies, canContact = false) {
   const mine = c.user_id === S.profile?.id;
   const lost = c.parent_id && orphan(c) ? `<p class="small"><em>${esc(COPY.removedByAuthor)}</em></p>` : '';
   return `${lost}<article class="comment ${c.hidden || c.removed || c.deleted_at ? 'muted' : ''}" id="c${c.id}">
-    <p class="meta"><strong>${esc(c.author_name)}</strong> · ${when(c.created_at)}${c.hidden ? ' · <em>hidden (flagged)</em>' : ''}${c.removed ? ' · <em>removed</em>' : ''}${c.deleted_at ? ' · <em>deleted by author</em>' : ''}</p>
+    <p class="meta">${nameHtml(c)} · ${when(c.created_at)}${c.hidden ? ' · <em>hidden (flagged)</em>' : ''}${c.removed ? ' · <em>removed</em>' : ''}${c.deleted_at ? ' · <em>deleted by author</em>' : ''}</p>
     ${c.body ? `<p class="body">${esc(c.body)}</p>` : ''}
     ${c.photo_path && !c.removed ? `<img class="photo" data-photo="${esc(c.photo_path)}" alt="${esc(COPY.photos.alt(c.author_name))}" loading="lazy" decoding="async" width="320" height="240">` : ''}
     <div class="actions">${c.deleted_at || c.removed ? '' : likeBtn(c.id)}<button class="linkbtn" data-reply="${c.id}" data-name="${esc(c.author_name)}">Reply</button>
     ${mine ? (c.deleted_at ? '' : `<button class="linkbtn" data-del="${c.id}">Delete</button>`) : `<button class="linkbtn" data-flag="${c.id}">Flag</button>`}
     ${canContact && !mine && c.user_id && !c.removed ? `<button class="linkbtn" data-contact-member="${esc(c.user_id)}" data-name="${esc(c.author_name)}">${esc(COPY.contact.title)}</button>` : ''}</div>
     ${replies.length ? `<div class="replies">${replies.map(r => commentHtml(r, [], canContact)).join('')}</div>` : ''}</article>`;
+}
+// Profile cards + small photos: The Porch and Town Square only (never The Circle). Set per thread in mountThread.
+let cardCtx = { on: false, av: {} };
+function nameHtml(c) {
+  if (!cardCtx.on || !c.user_id || c.removed) return `<strong>${esc(c.author_name)}</strong>`;
+  const p = cardCtx.av[c.user_id];
+  return `<button class="linkbtn who" data-card="${esc(c.user_id)}" data-name="${esc(c.author_name)}">${p ? `<img class="avatar sm" data-avatar="${esc(p)}" alt="" width="24" height="24">` : initialsHtml(c.author_name, 'sm')}<strong>${esc(c.author_name)}</strong></button>`;
+}
+async function fillAvatars(root) {
+  const imgs = [...root.querySelectorAll('img[data-avatar]')]; if (!imgs.length) return;
+  let urls = {}; try { urls = await api.avatarUrls(imgs.map(i => i.dataset.avatar)); } catch {}
+  imgs.forEach(i => { const u = urls[i.dataset.avatar]; if (u) i.src = u; else i.replaceWith(Object.assign(document.createElement('span'), { className: 'avatar initials sm', textContent: '·' })); });
+}
+async function showCard(box, uid, t, canContact) {
+  const P = COPY.profile; let c;
+  try { c = await api.card(uid, t.id); } catch (x) { toast(friendly(x)); return; }
+  if (!c) return;
+  const url = c.avatar_path ? (await api.avatarUrls([c.avatar_path]).catch(() => ({})))[c.avatar_path] : null;
+  const mine = uid === S.profile?.id;
+  box.innerHTML = `<div class="card profilecard" role="dialog" aria-label="${esc(c.display_name)}">${cardCtx.preview ? previewTag() : ''}
+    <div class="row">${url ? `<img class="avatar big" src="${esc(url)}" alt="${esc(P.cardAlt(c.display_name))}">` : initialsHtml(c.display_name, 'big')}
+    <div><h2>${esc(c.display_name)}</h2>${c.city ? `<p class="small">${esc(c.city)}</p>` : ''}</div></div>
+    <p>${esc(c.bio || P.noBio)}</p>
+    <div class="row">${canContact && !mine ? `<button class="btn small" data-contact-member="${esc(uid)}" data-name="${esc(c.display_name)}">${esc(COPY.contact.title)}</button>` : ''}<button class="btn alt small" data-cardclose>${esc(P.close)}</button></div></div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 async function fillPhotos(root) {
   const imgs = [...root.querySelectorAll('img[data-photo]')]; if (!imgs.length) return;
@@ -330,16 +386,23 @@ async function mountThread(t, o) {
   // Request contact on member names: The Porch and Town Square only, never The Circle rooms (the database checks this too).
   const canContact = !t.grp && (t.kind === 'porch' || t.kind === 'square') && await api.contactOn().catch(() => false);
   if (canContact) box.insertAdjacentHTML('beforebegin', '<div id="contactbox"></div>');
+  const pst = !t.grp && (t.kind === 'porch' || t.kind === 'square') ? await api.settings().catch(() => ({})) : {};
+  cardCtx = { on: !t.grp && (t.kind === 'porch' || t.kind === 'square') && (!!pst.profiles_on || isAdmin()), preview: !pst.profiles_on, av: {} };
+  if (cardCtx.on) box.insertAdjacentHTML('beforebegin', `<div id="cardbox"></div>${cardCtx.preview ? `<p class="small">${previewTag()}</p>` : ''}`);
+  if (cardCtx.on) box.parentElement.addEventListener('click', e => { if (e.target.closest('[data-cardclose]')) $('#cardbox').innerHTML = '';
+    const k = e.target.closest('#cardbox [data-contact-member]'); if (k && canContact) contactForm($('#contactbox'), { type: 'member', member_id: k.dataset.contactMember, name: k.dataset.name, topic_id: t.id }); });
   const load = async () => {
     const [all, lc] = await Promise.all([api.comments(t.id), api.likeCounts(t.id).catch(() => [])]);
-    likes = new Map(lc.map(r => [r.comment_id, r])); const byId = new Map(all.map(c => [c.id, c]));
+    likes = new Map(lc.map(r => [r.comment_id, r]));
+    if (cardCtx.on) cardCtx.av = await api.avatarPaths(all.map(c => c.user_id).filter(Boolean)).catch(() => ({}));
+    const byId = new Map(all.map(c => [c.id, c]));
     orphan = c => !byId.has(c.parent_id);
     const root = c => { let r = c; while (r.parent_id && byId.get(r.parent_id)) r = byId.get(r.parent_id); return r.id; };
     const tops = all.filter(c => !c.parent_id || !byId.has(c.parent_id));
     const kids = id => all.filter(c => c.parent_id && c.id !== id && root(c) === id);
     const ordered = o.newestFirst ? tops.slice().reverse() : tops;
     box.innerHTML = tops.length ? ordered.map(c => commentHtml(c, kids(c.id), canContact)).join('') : `<div class="card empty"><p>${esc(o.empty)}</p></div>`;
-    await fillPhotos(box);
+    await fillPhotos(box); if (cardCtx.on) await fillAvatars(box);
   };
   const gate = () => {
     const ok = S.profile?.guidelines_accepted_at;
@@ -375,6 +438,8 @@ async function mountThread(t, o) {
     if (r) { replyTo = +r.dataset.reply; const p = $('#replying'); p.hidden = false;
       p.innerHTML = `Replying to ${esc(r.dataset.name)} <button type="button" class="linkbtn" id="cancelreply">Cancel</button>`;
       $('#cancelreply').onclick = () => { replyTo = null; p.hidden = true; }; $('#composer textarea').focus(); }
+    const cd = e.target.closest('[data-card]');
+    if (cd && cardCtx.on) { await showCard($('#cardbox'), cd.dataset.card, t, canContact); return; }
     const k = e.target.closest('[data-contact-member]');
     if (k && canContact) contactForm($('#contactbox'), { type: 'member', member_id: k.dataset.contactMember, name: k.dataset.name, topic_id: t.id });
     const lk = e.target.closest('[data-like]');
@@ -436,7 +501,7 @@ V.corner.after = async () => { const rs = cornerRooms(await api.topics('square')
 
 // ---------- Admin (John only; the database enforces this too) ----------
 const ADMIN_TABS = [['requests', 'Join requests'], ['codes', 'Invite codes'], ['listings', 'Listings'], ['topics', 'Topics and photos'],
-  ['flags', 'Flags'], ['members', 'Members'], ['help', 'Help requests'], ['contact', 'Contact requests'], ['community', 'Community'], ['suggestions', 'Suggestions']];
+  ['flags', 'Flags'], ['members', 'Members'], ['help', 'Help requests'], ['contact', 'Contact requests'], ['community', 'Community'], ['avatars', 'Avatars'], ['suggestions', 'Suggestions']];
 V.admin = (tab = 'requests') => `<h1>Admin</h1><div id="status" class="card status"><p class="small">Loading site status…</p></div><nav class="tabs">${ADMIN_TABS.map(([k, l]) => `<a href="#/admin/${k}" aria-current="${k === tab ? 'page' : 'false'}">${l}</a>`).join('')}</nav><div id="adm"><p>Loading…</p></div>`;
 V.admin.after = async (tab = 'requests') => {
   const A = api.admin, box = $('#adm');
@@ -569,9 +634,27 @@ V.admin.after = async (tab = 'requests') => {
       box.innerHTML = rows.map(m => `<div class="card"><h2>${esc(m.display_name)} <span class="tag">${esc(m.role)}</span> <span class="tag">${esc(m.status)}</span></h2>
         ${m.role === 'admin' ? '' : `<div class="row">${m.status === 'active' ? `<button class="btn alt small" data-st="muted" data-mid="${esc(m.id)}">Mute</button>` : `<button class="btn small" data-st="active" data-mid="${esc(m.id)}">${m.status === 'removed' ? 'Bring back' : 'Unmute'}</button>`}
         ${m.status !== 'removed' ? `<button class="btn alt small" data-st="removed" data-mid="${esc(m.id)}">Remove</button>` : ''}
-        <button class="btn alt small" data-resetname="${esc(m.id)}">Reset name</button></div>`}</div>`).join('');
-      box.onclick = async e => { const rn = e.target.closest('[data-resetname]');
+        <button class="btn alt small" data-resetname="${esc(m.id)}">Reset name</button>
+        ${m.bio ? `<button class="btn alt small" data-clear="bio" data-mid="${esc(m.id)}">${esc(COPY.profile.clearBio)}</button>` : ''}${m.city ? `<button class="btn alt small" data-clear="city" data-mid="${esc(m.id)}">${esc(COPY.profile.clearCity)}</button>` : ''}${m.avatar_path ? `<button class="btn alt small" data-clear="photo" data-mid="${esc(m.id)}">${esc(COPY.profile.clearPhoto)}</button>` : ''}</div>`}
+        ${m.bio || m.city ? `<p class="small">${esc([m.city, m.bio].filter(Boolean).join(' · '))}</p>` : ''}</div>`).join('');
+      box.onclick = async e => { const cl = e.target.closest('[data-clear]');
+        if (cl) { if (confirm(COPY.profile.clearConfirm)) { try { await A.clearProfile(cl.dataset.mid, cl.dataset.clear); R.members(); } catch (x) { toast(friendly(x)); } } return; }
+        const rn = e.target.closest('[data-resetname]');
         if (rn && confirm('Reset this name to "Member"? Their posts will show "Member" too.')) { try { await A.resetName(rn.dataset.resetname); R.members(); } catch (x) { toast(friendly(x)); } return; } const b = e.target.closest('[data-st]'); if (b && (b.dataset.st !== 'removed' || confirm('Remove this member? They lose all access.'))) { await A.setMember(b.dataset.mid, b.dataset.st); R.members(); } };
+    },
+    async avatars() {
+      const P = COPY.profile, [rows, st] = await Promise.all([A.avatars(), api.settings()]);
+      const urls = await api.avatarUrls(rows.map(r => r.avatar_path)).catch(() => ({}));
+      box.innerHTML = `<div class="card"><h2>${esc(P.switchName)}</h2><p>${esc(st.profiles_on ? P.switchOn : P.switchOff)}</p>
+        <button class="btn ${st.profiles_on ? 'alt' : ''} small" data-pon="${st.profiles_on ? 0 : 1}">${esc(st.profiles_on ? P.turnOff : P.turnOn)}</button></div>
+        <p class="small">${esc(P.avatarsIntro)}</p>` + (rows.length ? rows.map(r => `<div class="card row">
+          ${urls[r.avatar_path] ? `<img class="avatar big" src="${esc(urls[r.avatar_path])}" alt="${esc(P.cardAlt(r.display_name))}">` : initialsHtml(r.display_name, 'big')}
+          <div><p><strong>${esc(r.display_name)}</strong> <span class="tag ${r.avatar_status === 'pending' ? 'warn' : ''}">${esc(P.tags[r.avatar_status] || r.avatar_status)}</span></p>
+          <div class="row">${r.avatar_status !== 'approved' ? `<button class="btn small" data-av="1" data-mid="${esc(r.id)}">${esc(P.approve)}</button>` : ''}${r.avatar_status !== 'rejected' ? `<button class="btn alt small" data-av="0" data-mid="${esc(r.id)}">${esc(P.reject)}</button>` : ''}</div></div></div>`).join('') : `<p>${esc(P.none)}</p>`);
+      box.onclick = async e => {
+        const sw = e.target.closest('[data-pon]'); if (sw) { await A.setSetting('profiles_on', sw.dataset.pon === '1'); return R.avatars(); }
+        const a = e.target.closest('[data-av]'); if (a) { try { await A.reviewAvatar(a.dataset.mid, a.dataset.av === '1'); R.avatars(); } catch (x) { toast(friendly(x)); } }
+      };
     },
     async help() {
       const rows = await A.help();

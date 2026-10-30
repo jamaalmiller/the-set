@@ -59,3 +59,11 @@ When you type a city on a listing, the box suggests cities you've already used i
 4. **Fully delete a person's login.** Go to left sidebar **Authentication**, then **Users**, find the email, click the **⋯** menu, then **Delete user**. Do this only if removing them in the app isn't enough. Never delete your own account (Admin Jay).
 
 Keep your Supabase password and any "service_role" key private. Don't paste them into the app or into chat.
+
+## Profile cards and photos (switch starts OFF)
+- **Switch:** Admin, then **Avatars**, top card: **Profile cards and photos: Turn on / Turn off**. While it's off, members see nothing new.
+- **Preview as admin (switch off):** More, then **Your profile**: you get the "Your profile card" box (photo, bio, city) marked "Preview: hidden from members". In The Porch or Town Square, tap any member name to open their card. Small photos/initials show next to names there.
+- **Members (once on):** More, then Your profile: choose a photo (cropped square, about 400px, under 150 KB, up to 3 changes a day), write a bio (up to 160 characters, live counter) and a city ("City, ST" or Online). No links, emails, @ or phone numbers. "Remove my photo" deletes it.
+- **Approving photos:** Admin, then **Avatars**: each photo shows Waiting / Approved / Rejected with Approve and Reject. Members only ever see approved photos; the member sees their own waiting photo with "Waiting for the admin."
+- **Clearing:** Admin, then **Members**: Clear bio / Clear city / Clear photo on any member.
+- Cards and small photos appear only in The Porch and Town Square. Never in The Circle (the database refuses Circle cards). Email is never shown.
