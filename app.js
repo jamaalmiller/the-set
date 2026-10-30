@@ -375,7 +375,7 @@ function commentHtml(c, replies, canContact = false) {
   const mine = c.user_id === S.profile?.id;
   const lost = c.parent_id && orphan(c) ? `<p class="small"><em>${esc(COPY.removedByAuthor)}</em></p>` : '';
   return `${lost}<article class="comment ${c.hidden || c.removed || c.deleted_at ? 'muted' : ''}" id="c${c.id}">
-    <p class="meta">${nameHtml(c)} · ${when(c.created_at)}${c.hidden ? ' · <em>hidden (flagged)</em>' : ''}${c.removed ? ' · <em>removed</em>' : ''}${c.deleted_at ? ' · <em>deleted by author</em>' : ''}</p>
+    <p class="meta">${c.parent_id && !orphan(c) ? '<span class="replytag" aria-label="Reply">↳</span>' : ''}${nameHtml(c)} · ${when(c.created_at)}${c.hidden ? ' · <em>hidden (flagged)</em>' : ''}${c.removed ? ' · <em>removed</em>' : ''}${c.deleted_at ? ' · <em>deleted by author</em>' : ''}</p>
     ${c.body ? `<p class="body">${esc(c.body)}</p>` : ''}
     ${c.photo_path && !c.removed ? `<img class="photo" data-photo="${esc(c.photo_path)}" alt="${esc(COPY.photos.alt(c.author_name))}" loading="lazy" decoding="async" width="320" height="240">` : ''}
     <div class="actions">${c.deleted_at || c.removed ? '' : likeBtn(c.id)}<button class="linkbtn" data-reply="${c.id}" data-name="${esc(c.author_name)}">Reply</button>
