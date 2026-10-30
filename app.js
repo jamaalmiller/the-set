@@ -79,12 +79,20 @@ V.home.after = async () => {
   } catch { const el = $('#happening'); if (el) el.innerHTML = `<p class="small">${esc(H.loadError)}</p>`; }
   try {
     const [cs, st] = await Promise.all([api.community(), api.settings()]), el = $('#community');
-    if (el && cs.length && (st.ticker_on || isAdmin())) mountTicker(el, cs, !st.ticker_on);
+    if (el && cs.length && st.ticker_home !== false && (st.ticker_on || isAdmin())) mountTickerMini(el, cs, !st.ticker_on);
   } catch { /* community block is optional */ }
 };
 
 // Ticker: one item at a time, rotates every 6s, pauses on tap/hover; plain list if reduced motion. Text only.
 const previewTag = () => `<span class="tag warn">${esc(COPY.preview)}</span>`;
+// Home: one compact line (slow 12s rotation, none if reduced motion) linking to the full ticker in The Town Square.
+function mountTickerMini(el, items, preview) {
+  const C = COPY.community, still = matchMedia('(prefers-reduced-motion: reduce)').matches || items.length === 1;
+  el.innerHTML = `<p class="tickmini"><strong>${esc(C.title)}:</strong> <span class="tickline"></span> ${preview ? previewTag() : ''} <a href="#/square">${esc(C.seeAll)}</a></p>`;
+  let k = 0; const line = el.querySelector('.tickline'), show = () => { line.textContent = items[k % items.length].title; };
+  show(); if (still) return;
+  const t = setInterval(() => { if (document.body.contains(line)) { k++; show(); } }, 12000); S.cleanup.push(() => clearInterval(t));
+}
 function mountTicker(el, items, preview) {
   const C = COPY.community, still = matchMedia('(prefers-reduced-motion: reduce)').matches || items.length === 1;
   const one = i => { const u = safeHttps(i.url); return u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(i.title)} ↗</a>` : esc(i.title); };
@@ -497,10 +505,13 @@ const squareHead = () => `${secHead('square', 'The Town Square', '<span class="l
   <p class="protect">${esc(COPY.square.protect)}</p><p class="small">${esc(COPY.square.moderation)} <a href="#/guidelines">Guidelines</a></p>
   ${SHOW_PRESENCE ? '<p id="presence" class="small" aria-live="polite"></p>' : ''}`;
 V.square = (id) => id ? `${squareHead()}<p><a href="#/square">← All topics</a></p><div id="topicbox"><p>Loading…</p></div>`
-  : `${squareHead()}<div id="topics" class="list"><p>Loading…</p></div>`;
+  : `${squareHead()}<section id="sqticker" class="card"></section><div id="topics" class="list"><p>Loading…</p></div>`;
 V.square.after = async (id) => {
   if (SHOW_PRESENCE) S.cleanup.push(api.presence(n => { const p = $('#presence'); if (p) p.textContent = `Live now (${n})`; }));
   if (!id) {
+    // Ticker sits above the topic list only (never inside topic pages or Circle rooms).
+    Promise.all([api.community(), api.settings()]).then(([cs, st]) => { const el = $('#sqticker');
+      if (el && cs.length && (st.ticker_on || isAdmin())) mountTicker(el, cs, !st.ticker_on); }).catch(() => {});
     const all = await api.topics('square'), ts = all.filter(t => !t.grp);
     $('#topics').innerHTML = (ts.length ? ts.map(topicCard).join('') : `<div class="card empty"><p>${esc(COPY.square.empty)}</p></div>`);
     return;
@@ -743,7 +754,8 @@ V.admin.after = async (tab = 'requests') => {
         <label>${esc(c.urlLabel)}<input name="url" type="url" inputmode="url" placeholder="https://" pattern="https://.+" value="${esc(i.url || '')}"></label><p class="small">${esc(c.urlHint)}</p>
         <label class="check"><input type="checkbox" name="published" ${i.id ? (i.published ? 'checked' : '') : 'checked'}> ${esc(c.publishLabel)}</label>
         <button class="btn small">${esc(i.id ? c.save : c.add)}</button></form>`;
-      box.innerHTML = `<h2>${esc(c.adminTitle)}</h2><div class="card"><p>${esc(st.ticker_on ? c.switchOn : c.switchOff)}</p><button class="btn ${st.ticker_on ? 'alt ' : ''}small" data-tick="${st.ticker_on ? 0 : 1}">${esc(st.ticker_on ? c.turnOff : c.turnOn)}</button></div>
+      box.innerHTML = `<h2>${esc(c.adminTitle)}</h2><div class="card"><p>${esc(st.ticker_on ? c.switchOn : c.switchOff)}</p><button class="btn ${st.ticker_on ? 'alt ' : ''}small" data-tick="${st.ticker_on ? 0 : 1}">${esc(st.ticker_on ? c.turnOff : c.turnOn)}</button>
+        <label class="check"><input type="checkbox" data-thome ${st.ticker_home !== false ? 'checked' : ''}> ${esc(c.homeToggle)}</label></div>
         <p class="small">${esc(c.adminIntro)} (${shown} of 5 showing)</p>${form()}` + (rows.length ? rows.map((i, n) => `<div class="card" data-ci="${i.id}">
         <h2>${esc(i.title)} <span class="tag">${esc(i.published ? c.live : c.hidden)}</span></h2>${i.url ? `<p class="small">${esc(i.url)}</p>` : ''}
         <div class="row">${n ? `<button class="btn alt small" data-cmv="${n}" data-dir="-1" aria-label="${esc(c.up)}">↑</button>` : ''}${n < rows.length - 1 ? `<button class="btn alt small" data-cmv="${n}" data-dir="1" aria-label="${esc(c.down)}">↓</button>` : ''}
@@ -762,6 +774,7 @@ V.admin.after = async (tab = 'requests') => {
         const mv = e.target.closest('[data-cmv]'), sw = e.target.closest('[data-tick]');
         try {
           if (sw) { await A.setSetting('ticker_on', sw.dataset.tick === '1'); R.community(); }
+          const th = e.target.closest('[data-thome]'); if (th) { await A.setSetting('ticker_home', th.checked); toast('Saved.'); }
           if (mv) { const n = +mv.dataset.cmv, m = n + +mv.dataset.dir, list = rows.slice(); [list[n], list[m]] = [list[m], list[n]];
             for (let j = 0; j < list.length; j++) { const want = list.length - j; if (list[j].sort !== want) await A.saveCommunity({ id: list[j].id, sort: want }); } R.community(); }
           if (ed) ed.closest('.card').querySelector('.slot').innerHTML = form(byId(ed.dataset.cedit));

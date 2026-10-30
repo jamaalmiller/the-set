@@ -92,3 +92,4 @@ a.card.block.corner { border-left-color:var(--ok); background:#f2f8f3; } .note.s
 .linkbtn.who{display:inline-flex;align-items:center;padding:0;text-decoration:none}
 .profilecard .row{align-items:center}
 .avatarnow{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.tickmini { margin:6px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

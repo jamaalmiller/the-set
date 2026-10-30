@@ -47,8 +47,9 @@ When you type a city on a listing, the box suggests cities you've already used i
 
 ## Community tab ("In the community" on Home)
 - Members' Home page shows a "What's happening" strip: the newest Porch and Town Square posts plus the newest published listings. It fills itself. The Circle rooms, Peace Table requests, contact requests, hidden posts and photos never appear there.
-- Under it, **"In the community"** is a one-line ticker: it shows one item at a time and rotates every 6 seconds, with dots to jump between items. Tapping pauses it. Phones set to "reduce motion" see a plain list instead.
-- **Ticker switch:** Admin, then **Community**, top card: **Turn on / Turn off**. It starts OFF. While it's off, members see nothing, and you (admin) still see the ticker on Home with a "Preview: hidden from members" label so you can test it.
+- **"In the community"** ticker lives at the **top of The Town Square** (topic list only, not inside topics or Circle rooms): it shows one item at a time and rotates every 6 seconds, with dots to jump between items. Tapping pauses it. Phones set to "reduce motion" see a plain list instead.
+- **Ticker switch:** Admin, then **Community**, top card: **Turn on / Turn off**. It starts OFF. While it's off, members see nothing, and you (admin) still see the ticker in The Town Square (and the small Home line) with a "Preview: hidden from members" label so you can test it.
+- **Small Home version:** Home shows one compact line with the current item and a "See all in The Town Square" link. Turn it off with **Show a small version on Home** in the same card (default on). It only appears when the ticker is on (or for you as a preview).
 - **Add an item:** type a title (up to 120 characters) and optionally an https:// link to the original source, leave **Show on Home** ticked, tap **Add item**. Up to 5 items can show at once.
 - **Edit**, **Hide/Show**, **Delete**, and the **↑ / ↓** arrows to change the order (top shows first). Text only, no photos. The Circle never appears here.
 

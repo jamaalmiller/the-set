@@ -1003,3 +1003,4 @@ begin
 end $$;
 revoke all on function send_appointment_request(bigint, text, text, text, text) from public, anon;
 grant execute on function send_appointment_request(bigint, text, text, text, text) to authenticated;
+alter table site_settings add column if not exists ticker_home boolean not null default true; -- 016
