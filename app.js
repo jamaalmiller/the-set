@@ -751,24 +751,24 @@ V.admin.after = async (tab = 'requests') => {
     async community() {
       const c = COPY.community, [rows, st] = await Promise.all([A.communityAll(), api.settings()]), shown = rows.filter(r => r.published).length;
       const form = (i = {}) => `<form class="card form" data-cform="${i.id || ''}"><label>${esc(c.titleLabel)}<input name="title" maxlength="120" required value="${esc(i.title || '')}"></label>
-        <label>${esc(c.urlLabel)}<input name="url" type="url" inputmode="url" placeholder="https://" pattern="https://.+" value="${esc(i.url || '')}"></label><p class="small">${esc(c.urlHint)}</p>
+        <label>${esc(c.urlLabel)}<input name="url" type="url" inputmode="url" placeholder="https://" pattern="https?://.+" required value="${esc(i.url || '')}"></label><p class="small">${esc(c.urlHint)}</p>
         <label class="check"><input type="checkbox" name="published" ${i.id ? (i.published ? 'checked' : '') : 'checked'}> ${esc(c.publishLabel)}</label>
         <button class="btn small">${esc(i.id ? c.save : c.add)}</button></form>`;
       box.innerHTML = `<h2>${esc(c.adminTitle)}</h2><div class="card"><p>${esc(st.ticker_on ? c.switchOn : c.switchOff)}</p><button class="btn ${st.ticker_on ? 'alt ' : ''}small" data-tick="${st.ticker_on ? 0 : 1}">${esc(st.ticker_on ? c.turnOff : c.turnOn)}</button>
         <label class="check"><input type="checkbox" data-thome ${st.ticker_home !== false ? 'checked' : ''}> ${esc(c.homeToggle)}</label></div>
         <p class="small">${esc(c.adminIntro)} (${shown} of 5 showing)</p><p class="note">${esc(c.guideline)}</p>${form()}` + (rows.length ? rows.map((i, n) => `<div class="card" data-ci="${i.id}">
-        <h2>${esc(i.title)} <span class="tag">${esc(i.published ? c.live : c.hidden)}</span></h2>${i.url ? `<p class="small">${esc(i.url)}</p>` : ''}
+        <h2>${esc(i.title)} <span class="tag">${esc(i.published ? c.live : c.hidden)}</span></h2>${i.url ? `<p class="small">${esc(i.url)}</p>` : ''}<p class="small">${esc(c.added)} ${esc(new Date(i.created_at).toLocaleDateString())}${Date.now() - new Date(i.created_at) > 7 * 864e5 ? ` <span class="tag warn">${esc(c.review)}</span>` : ''}</p>
         <div class="row">${n ? `<button class="btn alt small" data-cmv="${n}" data-dir="-1" aria-label="${esc(c.up)}">↑</button>` : ''}${n < rows.length - 1 ? `<button class="btn alt small" data-cmv="${n}" data-dir="1" aria-label="${esc(c.down)}">↓</button>` : ''}
         <button class="btn small" data-cedit="${i.id}">${esc(c.edit)}</button>
         <button class="btn alt small" data-ctog="${i.id}">${esc(i.published ? c.hide : c.show)}</button><button class="btn alt small" data-cdel="${i.id}">${esc(c.del)}</button></div><div class="slot"></div></div>`).join('') : `<p>${esc(c.none)}</p>`);
       const byId = id => rows.find(r => r.id === +id);
       box.onsubmit = async e => { const f = e.target.closest('[data-cform]'); if (!f) return; e.preventDefault();
         const d = Object.fromEntries(new FormData(f)), url = (d.url || '').trim();
-        if (url && !/^https:\/\/[^\s<>"]+$/.test(url)) return toast(friendly('BAD_URL'));
-        const it = { title: d.title.trim(), url: url || null, published: !!d.published };
+        if (!/^https?:\/\/[^\s<>"]+$/.test(url)) return toast(friendly('BAD_URL'));
+        const it = { title: d.title.trim(), url, published: !!d.published };
         if (f.dataset.cform) it.id = +f.dataset.cform; else it.sort = (rows[0]?.sort ?? 0) + 1;
         if (it.published && !byId(it.id)?.published && shown >= 5) return toast(c.cap);
-        try { await A.saveCommunity(it); toast('Saved.'); R.community(); } catch (x) { toast(friendly(x)); } };
+        try { await A.saveCommunity(it); toast('Saved.'); R.community(); } catch (x) { toast(/TICKER_CAP/.test(x?.message || x) ? c.cap : friendly(x)); } };
       box.onclick = async e => {
         const ed = e.target.closest('[data-cedit]'), tg = e.target.closest('[data-ctog]'), dl = e.target.closest('[data-cdel]'), yes = e.target.closest('[data-cdelyes]'), no = e.target.closest('[data-cdelno]');
         const mv = e.target.closest('[data-cmv]'), sw = e.target.closest('[data-tick]');
