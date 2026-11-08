@@ -95,3 +95,34 @@ a.card.block.corner { border-left-color:var(--ok); background:#f2f8f3; } .note.s
 .profilecard .row{align-items:center}
 .avatarnow{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
 .tickmini { margin:6px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* ========== v25 visual refresh: Harvest colors + Heritage headings (approved). Self-hosted OFL fonts (see fonts/OFL-*.txt). ========== */
+@font-face { font-family:'Playfair Display'; font-style:normal; font-weight:400 900; font-display:swap; src:url(fonts/playfair-display-latin.woff2) format('woff2'); }
+@font-face { font-family:'Source Sans 3'; font-style:normal; font-weight:200 900; font-display:swap; src:url(fonts/source-sans-3-latin.woff2) format('woff2'); }
+:root { --bg:#f5ecd9; --ink:#22180e; --card:#fffdf6; --brand:#4a2a12; --accent:#a14a1c; --muted:#5a4a33; --line:#e3d3b8;
+  --serif:'Playfair Display',Georgia,'Times New Roman',serif; --sans:'Source Sans 3',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
+body { font-family:var(--sans); }
+h1, h2, .brand, .hero h1, .sec-head h1 { font-family:var(--serif); font-weight:700; letter-spacing:.005em; }
+h2 { font-weight:600; }
+.brand em { font-style:italic; color:#f3d9a8; }
+.card, .comment { box-shadow:0 1px 2px rgba(74,42,18,.06),0 4px 14px rgba(74,42,18,.07); }
+.hero { background:#a14a1c; }
+/* Scene art: full width, original aspect ratio (height:auto), never cropped; text follows below. */
+.scene { margin:0 0 12px; border-radius:var(--r); overflow:hidden; background:#e8dcc4; aspect-ratio:16/9; }
+.scene img { display:block; width:100%; height:auto; aspect-ratio:16/9; }
+.scene + .sec-head, .scene + .hero { margin-top:0; }
+/* Harvest section colors (all white-on-color pairs ≥4.5:1, see report). Headers are opaque. */
+.theme-porch { --accent:#a3561a; } .sec-head.theme-porch { background:#a3561a; } .sec-head.theme-porch .sec-icon { color:#fff; }
+.theme-square { --accent:#8c3a20; } .sec-head.theme-square { background:#8c3a20; }
+.theme-block { --accent:#55661f; } .sec-head.theme-block { background:#55661f; } .sec-head.theme-block .sec-icon { color:#fff; } .theme-block .listing { box-shadow:inset 4px 0 0 #55661f; }
+.theme-clinic { --accent:#2c6a5a; } .sec-head.theme-clinic { background:#2c6a5a; }
+.theme-classroom { --accent:#8a5a10; } .sec-head.theme-classroom { background:#8a5a10; border:0; } .sec-head.theme-classroom h1 { font-family:var(--serif); letter-spacing:.005em; }
+.theme-peace { --accent:#35597a; } .sec-head.theme-peace { background:#35597a; }
+.theme-counsel { --accent:#3c3f78; } .sec-head.theme-counsel { background:#3c3f78; border-bottom:0; } .sec-head.theme-counsel .sec-icon { color:#fff; } .theme-counsel h1, .theme-counsel h2 { font-family:var(--serif); }
+/* The Circle: calm. Plain sage, no pattern, no shadow, no motion. */
+.theme-corner { --accent:#5e6e66; } .sec-head.theme-corner { background:#5e6e66; } a.card.block.corner { border-left-color:#5e6e66; background:#f3f5f2; }
+.theme-corner .card, .theme-corner .comment { box-shadow:none; } .theme-corner * { transition:none !important; animation:none !important; }
+@media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
+/* Focus ring readable on cream and on the dark top/bottom bars: dark outline + white halo. */
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:3px solid var(--ink); outline-offset:2px; box-shadow:0 0 0 5px #fff; }
+/* Nested replies stay visually attached to their parent card: no card shadow. */
+.replies .comment { box-shadow:none; }

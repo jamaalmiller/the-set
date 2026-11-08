@@ -51,7 +51,7 @@ function renderNav() {
 const V = {};
 
 V.home = () => `
-  <section class="hero"><h1>${esc(COPY.tagline)}</h1><p class="lead">${esc(COPY.subline)}</p>
+  ${artFig('home')}<section class="hero"><h1>${esc(COPY.tagline)}</h1><p class="lead">${esc(COPY.subline)}</p>
   ${S.profile ? `<a class="btn" href="#/porch">Go to The Porch</a>` : `<div class="row"><a class="btn" href="#/code">Pull up</a><a class="btn alt" href="#/request">Request an invite</a></div>
   <p class="small">Pull up = I have an invite code. Already a member? <a href="#/signin">Sign in</a></p>`}</section>
   ${S.profile ? `<section class="happening card" aria-labelledby="hap-h"><h2 id="hap-h">${esc(COPY.happening.title)}</h2><p class="small">${esc(COPY.happening.sub)}</p>
@@ -224,7 +224,22 @@ const ICON = {
   corner: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>',
 };
 const svgIcon = k => `<svg class="sec-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
-const secHead = (k, title, extra = '') => `<header class="sec-head theme-${k}">${svgIcon(k)}<h1>${esc(title)}</h1>${extra}</header>`;
+// Section scene art (approved final set). Full width, original 16:9 ratio, never cropped; text sits below.
+// Circle art is used ONLY on The Circle page (key 'corner'); never on Home, feeds, or other surfaces.
+const ART = {
+  home: ['home', 'A multigenerational Black family at a backyard cookout: a man grilling, an elder in a gold gown, couples laughing, children, and a grandfather in a wheelchair under string lights.'],
+  porch: ['porch', 'A Black family relaxing together on a wooden front porch on a sunny afternoon: grandmother, mother, grandfather in a flat cap, and two smiling children.'],
+  square: ['town-square', 'A vintage town square scene: a young newspaper seller stands on a crate holding up a paper while neighbors of all ages gather and listen.'],
+  block: ['block', 'Neighbors talking on a city block of brick buildings: three young adults standing by the sidewalk and an older man smiling on the front stoop.'],
+  clinic: ['clinic', 'A nurse in teal scrubs with a stethoscope gently speaks with a patient during a calm, friendly check-up visit.'],
+  counsel: ['counsel', 'A man in a blazer reviews notes at a small table with a young mother carrying her sleeping baby, in a warm brick-walled office.'],
+  classroom: ['classroom', 'A teen working on a laptop at a wooden table while a teacher, a classmate, a grandmother, and a father look on and help.'],
+  peace: ['peace-table', 'Five Black men seated around a table with coffee mugs, an older mediator in the middle, talking through an issue together.'],
+  corner: ['circle', 'A calm family gathering in a soft green living room: a father holding a toddler, a grandmother, two women holding hands, and a child reading a picture book.'],
+};
+const artFig = (k, eager = true) => { const a = ART[k]; if (!a) return '';
+  return `<figure class="scene"><img src="art/${a[0]}-640.webp" srcset="art/${a[0]}-640.webp 640w, art/${a[0]}-1280.webp 1280w" sizes="(min-width:860px) 828px, 100vw" width="1280" height="720" alt="${esc(a[1])}" decoding="async" ${eager ? 'fetchpriority="high"' : 'loading="lazy"'}></figure>`; };
+const secHead = (k, title, extra = '') => `${artFig(k)}<header class="sec-head theme-${k}">${svgIcon(k)}<h1>${esc(title)}</h1>${extra}</header>`;
 
 // ---------- Directories (shared by Clinic, Counsel, Block, Peace Table) ----------
 function dirView(cat) {
