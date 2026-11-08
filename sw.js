@@ -1,9 +1,9 @@
 // Service worker: keeps the app shell on the phone so it opens fast and shows a friendly page offline.
 // It NEVER stores Supabase data (logins, listings, conversations, photos or photo links): those always go to the internet.
-const CACHE = 'theset-shell-v25'; // change the number after each update so phones get the new files
+const CACHE = 'theset-shell-v26'; // change the number after each update so phones get the new files
 const SHELL = ['./', './index.html', './styles.css', './app.js', './data.js', './copy.js', './config.js',
-  './offline.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
-  './fonts/playfair-display-latin.woff2', './fonts/source-sans-3-latin.woff2'];
+  './offline.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/logo.svg', './icons/maskable-192.png', './icons/maskable-512.png',
+  './fonts/source-sans-3-latin.woff2'];
 // Scene art (art/*.webp) is not precached: it is saved on first view by the same-site network-first rule below, so offline shows art already seen.
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
